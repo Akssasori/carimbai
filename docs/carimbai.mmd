@@ -1,0 +1,102 @@
+erDiagram
+  CORE_MERCHANTS ||--o{ CORE_LOCATIONS : "1:N"
+  CORE_MERCHANTS ||--o{ CORE_STAFF_USERS : "1:N"
+  CORE_MERCHANTS ||--o{ FIDELITY_PROGRAMS : "1:N"
+
+  FIDELITY_PROGRAMS ||--o{ FIDELITY_CARDS : "1:N"
+  FIDELITY_CUSTOMERS ||--o{ FIDELITY_CARDS : "1:N"
+  FIDELITY_CARDS ||--o{ FIDELITY_STAMPS : "1:N"
+  CORE_LOCATIONS ||--o{ FIDELITY_STAMPS : "1:N"
+  CORE_STAFF_USERS ||--o{ FIDELITY_STAMPS : "1:N"
+  FIDELITY_CARDS ||--o{ FIDELITY_REWARDS : "1:N"
+  CORE_LOCATIONS ||--o{ FIDELITY_REWARDS : "1:N"
+  CORE_STAFF_USERS ||--o{ FIDELITY_REWARDS : "1:N"
+
+  FIDELITY_CARDS ||--o{ OPS_STAMP_TOKENS : "1:N"
+  CORE_LOCATIONS ||--o{ OPS_STAMP_TOKENS : "1:N"
+
+  OPS_STAMP_TOKENS {
+    BIGINT id PK
+    VARCHAR type
+    BIGINT id_ref
+    UUID nonce
+    TIMESTAMPTZ exp_at
+    TIMESTAMPTZ used_at
+    TEXT signature
+  }
+
+  CORE_MERCHANTS {
+    BIGINT id PK
+    VARCHAR name
+    VARCHAR document
+    BOOL active
+    TIMESTAMPTZ created_at
+  }
+
+  CORE_LOCATIONS {
+    BIGINT id PK
+    BIGINT merchant_id FK
+    VARCHAR name
+    VARCHAR address
+    JSONB flags
+    TIMESTAMPTZ created_at
+  }
+
+  CORE_STAFF_USERS {
+    BIGINT id PK
+    BIGINT merchant_id FK
+    VARCHAR email
+    TEXT password_hash
+    VARCHAR role
+    BOOL active
+    TIMESTAMPTZ created_at
+  }
+
+  FIDELITY_PROGRAMS {
+    BIGINT id PK
+    BIGINT merchant_id FK
+    VARCHAR name
+    INT rule_total_stamps
+    VARCHAR reward_name
+    INT expiration_days
+    TIMESTAMPTZ created_at
+  }
+
+  FIDELITY_CUSTOMERS {
+    BIGINT id PK
+    VARCHAR email
+    VARCHAR phone
+    VARCHAR provider_id
+    TIMESTAMPTZ created_at
+  }
+
+  FIDELITY_CARDS {
+    BIGINT id PK
+    BIGINT program_id FK
+    BIGINT customer_id FK
+    INT stamps_count
+    VARCHAR status
+    TIMESTAMPTZ expires_at
+    TIMESTAMPTZ created_at
+  }
+
+  FIDELITY_STAMPS {
+    BIGINT id PK
+    BIGINT card_id FK
+    TIMESTAMPTZ when_at
+    BIGINT location_id FK
+    BIGINT cashier_id FK
+    CHAR source
+    BIGINT token_id
+    INET ip
+    TEXT user_agent
+  }
+
+  FIDELITY_REWARDS {
+    BIGINT id PK
+    BIGINT card_id FK
+    TIMESTAMPTZ issued_at
+    TIMESTAMPTZ redeemed_at
+    BIGINT location_id FK
+    BIGINT cashier_id FK
+  }
