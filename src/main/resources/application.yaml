@@ -26,3 +26,7 @@ springdoc:
     path: /api-docs
   swagger-ui:
     path: /
+
+carimbai:
+  hmac-secret: ${CARIMBAI_HMAC_SECRET:dev-secret-change-me}
+
