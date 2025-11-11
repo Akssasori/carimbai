@@ -1,0 +1,63 @@
+sequenceDiagram
+    autonumber
+    actor Cliente as Cliente (PWA)
+    participant Front as PWA Front-End
+    participant CardsCtrl as CardsController (/api/cards/{id}/qr)
+    participant TokenSvc as StampTokenService
+    participant LojaPainel as Painel Lojista (Scanner)
+    participant StampsCtrl as StampsController (/api/stamp)
+    participant TokenSvc2 as StampTokenService
+    participant CardRepo as CardRepository
+    participant StampRepo as StampRepository
+    participant ProgramRepo as ProgramRepository
+    participant DB as PostgreSQL
+    rect rgb(235,245,255)
+        note over Cliente,LojaPainel: Fluxo 1 – Emissão do Token para QR Dinâmico
+        Cliente->>Front: Abre "Meu Cartão"
+        Front->>CardsCtrl: GET /api/cards/{cardId}/qr
+        CardsCtrl->>TokenSvc: issueCustomer(cardId)
+        TokenSvc->>TokenSvc: Gera nonce + exp + assina (HMAC)
+        TokenSvc-->>CardsCtrl: TokenPayload (type,idRef,nonce,exp,sig)
+        CardsCtrl-->>Front: QrTokenResponse
+        Front->>Front: Renderiza QR (campos + assinatura)
+    end
+
+    rect rgb(255,245,235)
+        note over LojaPainel,ProgramRepo: Fluxo 2 – Validação e Marcação de Selo
+        LojaPainel->>LojaPainel: Scanner lê QR do cliente
+        LojaPainel->>StampsCtrl: POST /api/stamp { type:"CUSTOMER_QR", payload{...} }
+        StampsCtrl->>TokenSvc2: validateAndConsume(TokenPayload)
+        TokenSvc2->>TokenSvc2: Verifica expiração
+        TokenSvc2->>TokenSvc2: Recalcula assinatura (HMAC) e compara constant-time
+        TokenSvc2->>DB: Consulta nonce (existsByNonce)
+        alt Token válido
+            TokenSvc2->>DB: Persiste uso do token (StampToken)
+            TokenSvc2-->>StampsCtrl: OK
+            StampsCtrl->>CardRepo: findById(cardId)
+            CardRepo-->>StampsCtrl: Card
+            StampsCtrl->>CardRepo: Incrementa stampsCount + save
+            StampsCtrl->>StampRepo: save(Stamp{card, source=A, tokenId})
+            StampsCtrl->>ProgramRepo: findById(programId)
+            ProgramRepo-->>StampsCtrl: Program (ruleTotalStamps)
+            StampsCtrl-->>LojaPainel: StampResponse(ok, cardId, stamps, needed, rewardIssued)
+            LojaPainel->>LojaPainel: Exibe "Selo #X marcado"
+        else Expirado
+            TokenSvc2-->>StampsCtrl: Erro: Token expired
+            StampsCtrl-->>LojaPainel: 400 {error:"Token expired"}
+            LojaPainel->>LojaPainel: Sugere cliente atualizar QR
+        else Assinatura inválida
+            TokenSvc2-->>StampsCtrl: Erro: Invalid signature
+            StampsCtrl-->>LojaPainel: 400 {error:"Invalid signature"}
+            LojaPainel->>LojaPainel: Alerta possível fraude
+        else Replay detectado
+            TokenSvc2-->>StampsCtrl: Erro: Replay detected
+            StampsCtrl-->>LojaPainel: 409 {error:"Replay detected"}
+            LojaPainel->>LojaPainel: Log/auditoria
+        end
+    end
+
+    rect rgb(240,240,240)
+        note over StampsCtrl,LojaPainel: Observações
+        StampsCtrl->>StampRepo: (ip/userAgent opcionais)
+        StampsCtrl->>LojaPainel: rewardIssued = true quando stampsCount >= ruleTotalStamps
+    end

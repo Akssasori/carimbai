@@ -1,6 +1,6 @@
 package com.app.carimbai.repositories;
 
-import com.app.carimbai.models.Location;
+import com.app.carimbai.models.core.Location;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

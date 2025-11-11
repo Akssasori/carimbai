@@ -1,5 +1,7 @@
-package com.app.carimbai.models;
+package com.app.carimbai.models.fidelity;
 
+import com.app.carimbai.models.core.Location;
+import com.app.carimbai.models.core.StaffUser;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;

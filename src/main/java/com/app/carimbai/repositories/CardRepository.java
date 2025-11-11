@@ -1,6 +1,6 @@
 package com.app.carimbai.repositories;
 
-import com.app.carimbai.models.Card;
+import com.app.carimbai.models.fidelity.Card;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

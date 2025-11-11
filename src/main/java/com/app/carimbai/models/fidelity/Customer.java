@@ -1,4 +1,4 @@
-package com.app.carimbai.models;
+package com.app.carimbai.models.fidelity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
