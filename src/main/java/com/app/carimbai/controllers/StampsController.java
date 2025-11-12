@@ -11,6 +11,10 @@ import com.app.carimbai.repositories.ProgramRepository;
 import com.app.carimbai.repositories.StampRepository;
 import com.app.carimbai.services.StampTokenService;
 import com.app.carimbai.utils.ObjectMapperHolder;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -34,6 +38,43 @@ public class StampsController {
         this.programRepo = programRepo;
     }
 
+    @Operation(summary = "Aplica o carimbo usando o token que veio do QR.", description = "Consome o token que foi lido " +
+            "do QR e carimba 1 selo no cartão. — Quem chama: Painel do lojista (após ler o QR do cliente OU depois, " +
+            "na Opção B, quando o cliente ler o QR do balcão). — Uso: validar token (HMAC+TTL+anti-replay), incrementar " +
+            "stamps_count, registrar stamps e retornar a nova contagem.")
+    @ApiResponse(
+            content = @Content(
+                    mediaType = "application/json",
+                    examples = {
+                            @ExampleObject(
+                                    name = "Exemple request",
+                                    value = """
+                                            {
+                                               "type": "CUSTOMER_QR",
+                                               "payload": {
+                                                 "cardId": 123,
+                                                 "nonce": "7d7c2b7a-0a1a-4e8c-9d5e-...",
+                                                 "exp": 1731370000,
+                                                 "sig": "b64url-hmac..."
+                                               }
+                                             }
+                                            """
+                            ),
+                            @ExampleObject(
+                                    name = "Exemple response",
+                                    value = """
+                                            {
+                                                "ok": true,
+                                                "cardId": 123,
+                                                "stamps": 7,
+                                                "needed": 10,
+                                                "rewardIssued": false
+                                              }
+                                            """
+                            )
+                    }
+            )
+    )
     @PostMapping
     public ResponseEntity<StampResponse> stamp(@RequestBody StampRequest req) {
         return switch (req.type()) {

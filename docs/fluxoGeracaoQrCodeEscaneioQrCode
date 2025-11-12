@@ -1,0 +1,12 @@
+Cliente (PWA)         Caixa (Painel)               Back-end
+     |                      |                         |
+     | GET /cards/{id}/qr   |                         |  // gera token efêmero
+     |<---- token ----------|                         |
+     | [QR na tela]         |                         |
+     |                      |  (escaneia QR)          |
+     |                      | POST /stamp {type:"CUSTOMER_QR", payload}
+     |                      |------------------------>|
+     |                      |         valida token,   |
+     |                      |         grava stamp,    |
+     |                      |         atualiza cont.  |
+     |                      |<---------- resposta ----|

@@ -1,6 +1,9 @@
 server:
   port: 1234
 spring:
+  output:
+    ansi:
+      enabled: ALWAYS
   application:
     name: carimbai
   flyway:

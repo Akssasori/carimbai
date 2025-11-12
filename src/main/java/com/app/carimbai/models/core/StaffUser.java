@@ -1,5 +1,6 @@
 package com.app.carimbai.models.core;
 
+import com.app.carimbai.enums.StaffRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

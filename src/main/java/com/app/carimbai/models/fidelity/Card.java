@@ -1,5 +1,6 @@
 package com.app.carimbai.models.fidelity;
 
+import com.app.carimbai.enums.CardStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
