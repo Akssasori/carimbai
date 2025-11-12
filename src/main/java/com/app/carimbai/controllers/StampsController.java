@@ -1,41 +1,36 @@
 package com.app.carimbai.controllers;
 
 import com.app.carimbai.dtos.CustomerQrPayload;
+import com.app.carimbai.dtos.RequestMeta;
 import com.app.carimbai.dtos.StampRequest;
 import com.app.carimbai.dtos.StampResponse;
-import com.app.carimbai.dtos.TokenPayload;
-import com.app.carimbai.enums.StampSource;
-import com.app.carimbai.models.fidelity.Stamp;
-import com.app.carimbai.repositories.CardRepository;
-import com.app.carimbai.repositories.ProgramRepository;
-import com.app.carimbai.repositories.StampRepository;
-import com.app.carimbai.services.StampTokenService;
-import com.app.carimbai.utils.ObjectMapperHolder;
+import com.app.carimbai.services.StampsService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import static com.app.carimbai.enums.StampType.CUSTOMER_QR;
+import static com.app.carimbai.enums.StampType.STORE_QR;
 
 @RestController
 @RequestMapping("/api/stamp")
 public class StampsController {
 
-    private final StampTokenService tokenService;
-    private final CardRepository cardRepo;
-    private final StampRepository stampRepo;
-    private final ProgramRepository programRepo;
+    private final ObjectMapper mapper;
+    private final StampsService service;
 
-    public StampsController(StampTokenService tokenService, CardRepository cardRepo,
-                            StampRepository stampRepo, ProgramRepository programRepo) {
-        this.tokenService = tokenService;
-        this.cardRepo = cardRepo;
-        this.stampRepo = stampRepo;
-        this.programRepo = programRepo;
+    public StampsController(ObjectMapper mapper, StampsService service) {
+        this.mapper = mapper;
+        this.service = service;
     }
 
     @Operation(summary = "Aplica o carimbo usando o token que veio do QR.", description = "Consome o token que foi lido " +
@@ -76,37 +71,21 @@ public class StampsController {
             )
     )
     @PostMapping
-    public ResponseEntity<StampResponse> stamp(@RequestBody StampRequest req) {
+    public ResponseEntity<StampResponse> stamp(@Valid @RequestBody StampRequest req,
+                                               @RequestHeader(name = "User-Agent", required = false) String ua) {
         return switch (req.type()) {
-            case "CUSTOMER_QR" -> handleCustomer(req);
+            case CUSTOMER_QR -> {
+                var p = mapper.convertValue(req.payload(), CustomerQrPayload.class);
+                var meta = new RequestMeta(ua);
+                yield ResponseEntity.ok(service.handleCustomer(p, meta));
+            }
+
+            case STORE_QR -> {
+                // ainda não implementado (Opção B)
+                // Quando migrar: crie StoreQrPayload e um service.handleStore(p, meta)
+                yield ResponseEntity.status(501).build();
+            }
             default -> ResponseEntity.badRequest().build();
         };
-    }
-
-    // Implementação para CUSTOMER_QR (A). Para STORE_QR (B) você só cria um método semelhante.
-    private ResponseEntity<StampResponse> handleCustomer(StampRequest req) {
-        // desserializa payload para CustomerQrPayload
-        var p = ObjectMapperHolder.INSTANCE.convertValue(req.payload(), CustomerQrPayload.class);
-
-        var payload = new TokenPayload("CUSTOMER_QR", p.cardId(), p.nonce(), p.exp(), p.sig());
-        tokenService.validateAndConsume(payload);
-
-        var card = cardRepo.findById(p.cardId()).orElseThrow();
-        card.setStampsCount(card.getStampsCount() + 1);
-
-        var savedCard = cardRepo.save(card);
-
-        // grava stamp
-        var s = new Stamp();
-        s.setCard(card);
-        s.setSource(StampSource.A);
-        stampRepo.save(s);
-
-        var program = programRepo.findById(card.getProgram().getId()).orElseThrow();
-        var needed = program.getRuleTotalStamps();
-
-        boolean reward = savedCard.getStampsCount() >= needed;
-
-        return ResponseEntity.ok(new StampResponse(true, card.getId(), savedCard.getStampsCount(), needed, reward));
     }
 }

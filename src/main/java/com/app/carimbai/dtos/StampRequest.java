@@ -1,4 +1,7 @@
 package com.app.carimbai.dtos;
 
-public record StampRequest(String type, Object payload) {
+import com.app.carimbai.enums.StampType;
+import jakarta.validation.constraints.NotNull;
+
+public record StampRequest(@NotNull StampType type, @NotNull Object payload) {
 }
