@@ -3,6 +3,7 @@ package com.app.carimbai.controllers;
 import com.app.carimbai.dtos.RedeemRequest;
 import com.app.carimbai.dtos.RedeemResponse;
 import com.app.carimbai.services.RedeemService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -23,6 +24,9 @@ public class RedeemController {
         this.service = service;
     }
 
+    @Operation(summary = "Responsável por gerenciar o processo de resgate de recompensas",
+            description = "o RedeemController é o " +
+            "ponto de entrada para o cliente resgatar seu prêmio após atingir o número de visitas necessárias.")
     @ApiResponse(
             content = @Content(
                     mediaType = "application/json",

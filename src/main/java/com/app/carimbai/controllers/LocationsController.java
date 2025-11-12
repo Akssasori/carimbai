@@ -18,10 +18,15 @@ public class LocationsController {
     public LocationsController(StampTokenService tokenService) {
         this.tokenService = tokenService;
     }
-    @Operation(summary = "Emite o QR da loja (gera o token).", description = "Gera o token efêmero (que você " +
-            "renderiza como QR) da loja. — Quem chama: PWA do caixa (tela de escanear o QR do cliente)." +
-            "— Uso: mostrar o QR na tela para o caixa escanear (Opção B).")
-    @GetMapping("/api/locations/{id}/qr")
+    @Operation(summary = "Gera um token efêmero para uma loja específica, que pode ser renderizado como um QR Code",
+            description = """
+                Esse QR é usado pelo caixa do estabelecimento para registrar a visita do cliente, garantindo que o processo seja seguro e automatizado.
+                O fluxo seria assim:
+                O caixa gera o QR Code da loja.
+                O cliente escaneia esse QR com seu aplicativo.
+                O sistema registra a visita.
+                Quando o cliente acumula 10 visitas, ele recebe a recompensa.
+                """)
     public ResponseEntity<QrTokenResponse> locationQr(@PathVariable Long id) {
         // (opcional) checar flag enableScanB antes
         var t = tokenService.issueStore(id);
