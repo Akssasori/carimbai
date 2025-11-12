@@ -18,9 +18,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import static com.app.carimbai.enums.StampType.CUSTOMER_QR;
-import static com.app.carimbai.enums.StampType.STORE_QR;
-
 @RestController
 @RequestMapping("/api/stamp")
 public class StampsController {
