@@ -42,6 +42,9 @@ public class StaffUser {
     @Column(nullable=false)
     private Boolean active = true;
 
+    @Column(name="pin_hash")
+    private String pinHash;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="merchant_id", nullable=false)
     private Merchant merchant;
