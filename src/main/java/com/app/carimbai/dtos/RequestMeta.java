@@ -1,4 +1,4 @@
 package com.app.carimbai.dtos;
 
-public record RequestMeta(String userAgent /*, InetAddress ip */) {
+public record RequestMeta(String userAgent, Long locationId) {
 }

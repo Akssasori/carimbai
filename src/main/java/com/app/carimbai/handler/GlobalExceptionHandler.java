@@ -1,5 +1,6 @@
 package com.app.carimbai.handler;
 
+import com.app.carimbai.execption.TooManyStampsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -28,5 +29,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> validation(MethodArgumentNotValidException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("error", "VALIDATION", "message", ex.getBindingResult().toString()));
+    }
+
+    @ExceptionHandler(TooManyStampsException.class)
+    public ResponseEntity<?> tooMany(TooManyStampsException ex) {
+        return ResponseEntity.status(429).body(Map.of("error","TOO_MANY_REQUESTS","message",ex.getMessage()));
     }
 }

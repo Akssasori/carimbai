@@ -69,11 +69,12 @@ public class StampsController {
     )
     @PostMapping
     public ResponseEntity<StampResponse> stamp(@Valid @RequestBody StampRequest req,
-                                               @RequestHeader(name = "User-Agent", required = false) String ua) {
+                                               @RequestHeader(name = "User-Agent", required = false) String ua,
+                                               @RequestHeader(name = "X-Location-Id", required = false) Long locationId) throws Exception {
         return switch (req.type()) {
             case CUSTOMER_QR -> {
                 var p = mapper.convertValue(req.payload(), CustomerQrPayload.class);
-                var meta = new RequestMeta(ua);
+                var meta = new RequestMeta(ua, locationId);
                 yield ResponseEntity.ok(service.handleCustomer(p, meta));
             }
 
