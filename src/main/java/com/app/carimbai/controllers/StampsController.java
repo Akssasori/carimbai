@@ -68,20 +68,23 @@ public class StampsController {
             )
     )
     @PostMapping
-    public ResponseEntity<StampResponse> stamp(@Valid @RequestBody StampRequest req,
-                                               @RequestHeader(name = "User-Agent", required = false) String ua,
-                                               @RequestHeader(name = "X-Location-Id", required = false) Long locationId) throws Exception {
+    public ResponseEntity<StampResponse> stamp(
+            @Valid @RequestBody StampRequest req,
+            @RequestHeader(name = "User-Agent", required = false) String ua,
+            @RequestHeader(name = "X-Location-Id", required = false) Long locationId,
+            @RequestHeader(name = "Idempotency-Key", required = false) String idemKey
+    ) throws Exception {
+
         return switch (req.type()) {
             case CUSTOMER_QR -> {
                 var p = mapper.convertValue(req.payload(), CustomerQrPayload.class);
                 var meta = new RequestMeta(ua, locationId);
-                yield ResponseEntity.ok(service.handleCustomer(p, meta));
+                // 👉 passa a idemKey para o service
+                yield ResponseEntity.ok(service.handleCustomer(p, meta, idemKey));
             }
-
             case STORE_QR -> {
-                // ainda não implementado (Opção B)
-                // Quando migrar: crie StoreQrPayload e um service.handleStore(p, meta)
-                yield ResponseEntity.status(501).build();
+                // (B) quando ativar, mesma ideia
+                ResponseEntity.status(501).build();
             }
             default -> ResponseEntity.badRequest().build();
         };

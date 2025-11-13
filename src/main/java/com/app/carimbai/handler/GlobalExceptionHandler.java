@@ -1,6 +1,7 @@
 package com.app.carimbai.handler;
 
 import com.app.carimbai.execption.TooManyStampsException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -34,5 +35,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(TooManyStampsException.class)
     public ResponseEntity<?> tooMany(TooManyStampsException ex) {
         return ResponseEntity.status(429).body(Map.of("error","TOO_MANY_REQUESTS","message",ex.getMessage()));
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<?> optimisticLockingFailure(OptimisticLockingFailureException ex) {
+        return ResponseEntity.status(409).body(Map.of("error","OPTIMISTIC_LOCKING_FAILURE","message",ex.getMessage()));
     }
 }

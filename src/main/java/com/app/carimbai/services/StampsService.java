@@ -14,7 +14,6 @@ import com.app.carimbai.repositories.ProgramRepository;
 import com.app.carimbai.repositories.StampRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -52,7 +51,13 @@ public class StampsService {
      * Devolve a contagem atual e se gerou recompensa.
      */
     @Transactional
-    public StampResponse handleCustomer(CustomerQrPayload p, RequestMeta meta) throws Exception {
+    public StampResponse handleCustomer(CustomerQrPayload p, RequestMeta meta, String idemKey) throws Exception {
+
+        // 0) Idempotência (opcional: só se veio chave)
+        if (idemKey != null && !idemKey.isBlank()) {
+            // persiste a chave; se já existir, lançar 409
+            idempotencyService.acquireOrThrow(idemKey);
+        }
 
         // 1) RATE LIMIT — cheque ANTES de consumir o token
         Long locId = (meta != null ? meta.locationId() : null);

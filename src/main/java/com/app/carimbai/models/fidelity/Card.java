@@ -13,6 +13,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -56,6 +57,10 @@ public class Card {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="customer_id", nullable=false)
     private Customer customer;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
 
 
 
