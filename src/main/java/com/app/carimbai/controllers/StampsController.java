@@ -84,7 +84,7 @@ public class StampsController {
             }
             case STORE_QR -> {
                 // (B) quando ativar, mesma ideia
-                ResponseEntity.status(501).build();
+                yield ResponseEntity.status(501).build();
             }
             default -> ResponseEntity.badRequest().build();
         };
