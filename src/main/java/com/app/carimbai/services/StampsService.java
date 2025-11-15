@@ -26,6 +26,7 @@ public class StampsService {
     private final StampRepository stampRepo;
     private final ProgramRepository programRepo;
     private final LocationRepository locationRepo;
+    private final IdempotencyService idempotencyService;
 
     // Janela de rate limit (segundos)
     private final int rateWindowSeconds;
@@ -35,12 +36,14 @@ public class StampsService {
                          StampRepository stampRepo,
                          ProgramRepository programRepo,
                          LocationRepository locationRepo,
+                         IdempotencyService idempotencyService,
                          @Value("${carimbai.rate-limit.seconds:120}") int rateWindowSeconds) {
         this.tokenService = tokenService;
         this.cardRepo = cardRepo;
         this.stampRepo = stampRepo;
         this.programRepo = programRepo;
         this.locationRepo = locationRepo;
+        this.idempotencyService = idempotencyService;
         this.rateWindowSeconds = rateWindowSeconds;
     }
 
