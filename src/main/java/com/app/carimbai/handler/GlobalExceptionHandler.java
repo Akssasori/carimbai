@@ -38,10 +38,10 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(429).body(Map.of("error","TOO_MANY_REQUESTS","message",ex.getMessage()));
     }
 
-    @ExceptionHandler(OptimisticLockingFailureException.class)
-    public ResponseEntity<?> optimisticLockingFailure(OptimisticLockingFailureException ex) {
-        return ResponseEntity.status(409).body(Map.of("error","OPTIMISTIC_LOCKING_FAILURE","message",ex.getMessage()));
-    }
+//    @ExceptionHandler(OptimisticLockingFailureException.class)
+//    public ResponseEntity<?> optimisticLockingFailure(OptimisticLockingFailureException ex) {
+//        return ResponseEntity.status(409).body(Map.of("error","OPTIMISTIC_LOCKING_FAILURE","message",ex.getMessage()));
+//    }
 
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<?> optimistic(ObjectOptimisticLockingFailureException ex) {

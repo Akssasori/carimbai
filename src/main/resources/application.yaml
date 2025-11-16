@@ -34,4 +34,6 @@ carimbai:
   hmac-secret: ${CARIMBAI_HMAC_SECRET:dev-secret-change-me}
   policy:
     use-location-policy: false   # ⚠️ OFF: políticas NÃO aplicadas ainda
+  rate-limiting:
+    seconds: 120
 

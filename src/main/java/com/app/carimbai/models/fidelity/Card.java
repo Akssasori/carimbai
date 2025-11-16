@@ -63,6 +63,4 @@ public class Card {
     private Long version = 0L;
 
 
-
-
 }
