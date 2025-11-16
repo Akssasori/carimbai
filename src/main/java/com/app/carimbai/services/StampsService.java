@@ -3,6 +3,7 @@ package com.app.carimbai.services;
 import com.app.carimbai.dtos.CustomerQrPayload;
 import com.app.carimbai.dtos.RequestMeta;
 import com.app.carimbai.dtos.StampResponse;
+import com.app.carimbai.dtos.StoreQrPayload;
 import com.app.carimbai.dtos.TokenPayload;
 import com.app.carimbai.enums.StampSource;
 import com.app.carimbai.execption.TooManyStampsException;
@@ -111,4 +112,46 @@ public class StampsService {
         }
     }
 
+    @Transactional
+    public StampResponse handleStore(StoreQrPayload p, RequestMeta meta, String idemKey) throws Exception {
+
+        if (idemKey != null && !idemKey.isBlank()) {
+            idempotencyService.acquireOrThrow(idemKey);
+        }
+
+        // rate limit por cartão+loja (B usa sempre locationId do token)
+        checkRateLimit(p.cardId(), p.locationId());
+
+        // valida e consome o token B (idRef = locationId)
+        var tp = new TokenPayload("STORE_QR", p.locationId(), p.nonce(), p.exp(), p.sig());
+        tokenService.validateAndConsume(tp);
+
+        // carrega card + programa
+        var card = cardRepo.findById(p.cardId())
+                .orElseThrow(() -> new IllegalArgumentException("Card not found: " + p.cardId()));
+        var program = programRepo.findById(card.getProgram().getId())
+                .orElseThrow(() -> new IllegalStateException("Program not found for card " + p.cardId()));
+
+        // valida coerência: location e card pertencem ao mesmo merchant
+        var loc = locationRepo.findById(p.locationId())
+                .orElseThrow(() -> new IllegalArgumentException("Location not found: " + p.locationId()));
+        if (!loc.getMerchant().getId().equals(card.getProgram().getMerchant().getId())) {
+            throw new IllegalArgumentException("Card and Location belong to different merchants");
+        }
+
+        // incrementa
+        card.setStampsCount(card.getStampsCount() + 1);
+        card = cardRepo.save(card);
+
+        // registra stamp com location do payload
+        var stamp = new Stamp();
+        stamp.setCard(card);
+        stamp.setSource(StampSource.B);
+        stamp.setLocation(loc);
+        if (meta != null) stamp.setUserAgent(meta.userAgent());
+        stampRepo.save(stamp);
+
+        boolean reward = card.getStampsCount() >= program.getRuleTotalStamps();
+        return new StampResponse(true, card.getId(), card.getStampsCount(), program.getRuleTotalStamps(), reward);
+    }
 }

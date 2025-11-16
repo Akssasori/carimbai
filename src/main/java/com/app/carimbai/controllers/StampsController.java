@@ -4,6 +4,7 @@ import com.app.carimbai.dtos.CustomerQrPayload;
 import com.app.carimbai.dtos.RequestMeta;
 import com.app.carimbai.dtos.StampRequest;
 import com.app.carimbai.dtos.StampResponse;
+import com.app.carimbai.dtos.StoreQrPayload;
 import com.app.carimbai.services.StampsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -83,8 +84,10 @@ public class StampsController {
                 yield ResponseEntity.ok(service.handleCustomer(p, meta, idemKey));
             }
             case STORE_QR -> {
-                // (B) quando ativar, mesma ideia
-                yield ResponseEntity.status(501).build();
+                var p = mapper.convertValue(req.payload(), StoreQrPayload.class);
+                // B: locationId vem do payload/token; não precisa header
+                var meta = new RequestMeta(ua, p.locationId());
+                yield ResponseEntity.ok(service.handleStore(p, meta, idemKey));
             }
             default -> ResponseEntity.badRequest().build();
         };
