@@ -4,7 +4,6 @@ import com.app.carimbai.dtos.CustomerQrPayload;
 import com.app.carimbai.dtos.RequestMeta;
 import com.app.carimbai.dtos.StampRequest;
 import com.app.carimbai.dtos.StampResponse;
-import com.app.carimbai.dtos.StoreQrPayload;
 import com.app.carimbai.services.StampsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,8 +31,7 @@ public class StampsController {
     }
 
     @Operation(summary = "Aplica o carimbo usando o token que veio do QR.", description = "Consome o token que foi lido " +
-            "do QR e carimba 1 selo no cartão. — Quem chama: Painel do lojista (após ler o QR do cliente OU depois, " +
-            "na Opção B, quando o cliente ler o QR do balcão). — Uso: validar token (HMAC+TTL+anti-replay), incrementar " +
+            "do QR e carimba 1 selo no cartão. Validação: HMAC+TTL+anti-replay+idempotência, incrementar " +
             "stamps_count, registrar stamps e retornar a nova contagem.")
     @ApiResponse(
             content = @Content(
@@ -73,23 +71,15 @@ public class StampsController {
             @Valid @RequestBody StampRequest req,
             @RequestHeader(name = "User-Agent", required = false) String ua,
             @RequestHeader(name = "X-Location-Id", required = false) Long locationId,
-            @RequestHeader(name = "Idempotency-Key", required = false) String idemKey
+            @RequestHeader(name = "Idempotency-Key") String idemKey
     ) throws Exception {
 
-        return switch (req.type()) {
-            case CUSTOMER_QR -> {
-                var p = mapper.convertValue(req.payload(), CustomerQrPayload.class);
-                var meta = new RequestMeta(ua, locationId);
-                // 👉 passa a idemKey para o service
-                yield ResponseEntity.ok(service.handleCustomer(p, meta, idemKey));
-            }
-            case STORE_QR -> {
-                var p = mapper.convertValue(req.payload(), StoreQrPayload.class);
-                // B: locationId vem do payload/token; não precisa header
-                var meta = new RequestMeta(ua, p.locationId());
-                yield ResponseEntity.ok(service.handleStore(p, meta, idemKey));
-            }
-            default -> ResponseEntity.badRequest().build();
-        };
+        if (req.type() != com.app.carimbai.enums.StampType.CUSTOMER_QR) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        var p = mapper.convertValue(req.payload(), CustomerQrPayload.class);
+        var meta = new RequestMeta(ua, locationId);
+        return ResponseEntity.ok(service.handleCustomer(p, meta, idemKey));
     }
 }

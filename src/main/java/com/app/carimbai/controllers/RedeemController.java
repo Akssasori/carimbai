@@ -24,9 +24,9 @@ public class RedeemController {
         this.service = service;
     }
 
-    @Operation(summary = "Responsável por gerenciar o processo de resgate de recompensas",
-            description = "o RedeemController é o " +
-            "ponto de entrada para o cliente resgatar seu prêmio após atingir o número de visitas necessárias.")
+    @Operation(summary = "Resgata recompensa após atingir número necessário de carimbos",
+            description = "Cliente resgata prêmio após acumular carimbos suficientes (padrão: 10). " +
+                    "Após resgate, contador de carimbos é zerado.")
     @ApiResponse(
             content = @Content(
                     mediaType = "application/json",
@@ -36,8 +36,6 @@ public class RedeemController {
                                     value = """
                                             {
                                                 "cardId": 123,
-                                                "cashierId": 45,
-                                                "cashierPin": "1234",
                                                 "locationId": 9
                                             }
                                             """

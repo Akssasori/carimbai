@@ -12,8 +12,7 @@ public interface StampRepository extends JpaRepository<Stamp, Long> {
       select case when count(s)>0 then true else false end
       from Stamp s
       where s.card.id = :cardId
-        and (:locationId is null or s.location.id = :locationId)
         and s.whenAt > :since
     """)
-    boolean existsRecentByCardAndLocation(Long cardId, Long locationId, OffsetDateTime since);
+    boolean existsRecentByCard(Long cardId, OffsetDateTime since);
 }
