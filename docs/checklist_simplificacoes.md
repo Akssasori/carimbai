@@ -44,12 +44,13 @@
   - Ajustado: carimbai.rate-limit.seconds=120
   - Removido: carimbai.policy.use-location-policy
 
-## Endpoints Ativos (3)
+## Endpoints Ativos (4)
 
 ```
-✅ GET  /api/cards/{id}/qr     - Gera token CUSTOMER_QR
-✅ POST /api/stamp             - Aplica carimbo (requer Idempotency-Key)
-✅ POST /api/redeem            - Resgata recompensa
+✅ GET  /api/cards/customer/{customerId}  - Lista cartões do cliente
+✅ GET  /api/cards/{id}/qr                - Gera token CUSTOMER_QR
+✅ POST /api/stamp                        - Aplica carimbo (requer Idempotency-Key)
+✅ POST /api/redeem                       - Resgata recompensa
 ```
 
 ## Segurança Mantida
