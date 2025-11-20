@@ -18,15 +18,17 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.app.carimbai.enums.StampType.CUSTOMER_QR;
+
 @RestController
 @RequestMapping("/api/stamp")
 public class StampsController {
 
-    private final ObjectMapper mapper;
+    private final ObjectMapper objectMapper;
     private final StampsService service;
 
-    public StampsController(ObjectMapper mapper, StampsService service) {
-        this.mapper = mapper;
+    public StampsController(ObjectMapper objectMapper, StampsService service) {
+        this.objectMapper = objectMapper;
         this.service = service;
     }
 
@@ -68,18 +70,11 @@ public class StampsController {
     )
     @PostMapping
     public ResponseEntity<StampResponse> stamp(
-            @Valid @RequestBody StampRequest req,
-            @RequestHeader(name = "User-Agent", required = false) String ua,
+            @Valid @RequestBody StampRequest stampRequest,
+            @RequestHeader(name = "User-Agent", required = false) String userAgent,
             @RequestHeader(name = "X-Location-Id", required = false) Long locationId,
             @RequestHeader(name = "Idempotency-Key") String idemKey
-    ) throws Exception {
-
-        if (req.type() != com.app.carimbai.enums.StampType.CUSTOMER_QR) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        var p = mapper.convertValue(req.payload(), CustomerQrPayload.class);
-        var meta = new RequestMeta(ua, locationId);
-        return ResponseEntity.ok(service.handleCustomer(p, meta, idemKey));
+    ) {
+        return ResponseEntity.ok(service.handleCustomer(stampRequest, userAgent, locationId, idemKey));
     }
 }

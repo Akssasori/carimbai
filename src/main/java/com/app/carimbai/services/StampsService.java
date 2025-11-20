@@ -2,6 +2,7 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.CustomerQrPayload;
 import com.app.carimbai.dtos.RequestMeta;
+import com.app.carimbai.dtos.StampRequest;
 import com.app.carimbai.dtos.StampResponse;
 import com.app.carimbai.dtos.TokenPayload;
 import com.app.carimbai.enums.StampSource;
@@ -11,11 +12,17 @@ import com.app.carimbai.models.fidelity.Stamp;
 import com.app.carimbai.repositories.CardRepository;
 import com.app.carimbai.repositories.LocationRepository;
 import com.app.carimbai.repositories.StampRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import java.time.OffsetDateTime;
+import java.util.Objects;
+
+import static com.app.carimbai.enums.StampType.CUSTOMER_QR;
 
 @Service
 public class StampsService {
@@ -25,6 +32,7 @@ public class StampsService {
     private final StampRepository stampRepo;
     private final LocationRepository locationRepo;
     private final IdempotencyService idempotencyService;
+    private final ObjectMapper objectMapper;
     private final int rateWindowSeconds;
     private final int stampsNeeded;
 
@@ -33,6 +41,7 @@ public class StampsService {
                          StampRepository stampRepo,
                          LocationRepository locationRepo,
                          IdempotencyService idempotencyService,
+                         ObjectMapper objectMapper,
                          @Value("${carimbai.rate-limit.seconds:120}") int rateWindowSeconds,
                          @Value("${carimbai.stamps-needed:10}") int stampsNeeded) {
         this.tokenService = tokenService;
@@ -40,22 +49,37 @@ public class StampsService {
         this.stampRepo = stampRepo;
         this.locationRepo = locationRepo;
         this.idempotencyService = idempotencyService;
+        this.objectMapper = objectMapper;
         this.rateWindowSeconds = rateWindowSeconds;
         this.stampsNeeded = stampsNeeded;
     }
 
     @Transactional
-    public StampResponse handleCustomer(CustomerQrPayload p, RequestMeta meta, String idemKey) throws Exception {
+    public StampResponse handleCustomer(StampRequest stampRequest, String userAgent, Long locationId,
+                                        String idemKey) {
+
+        if (stampRequest.type() != CUSTOMER_QR) {
+            throw new IllegalArgumentException("Tipo de carimbo inválido para este endpoint.");
+        }
+
+        var customerQrPayload = objectMapper.convertValue(stampRequest.payload(), CustomerQrPayload.class);
+
+        RequestMeta requestMeta = null;
+        if (Objects.nonNull(userAgent) && Objects.nonNull(locationId)) {
+            requestMeta =  new RequestMeta(userAgent, locationId);
+        }
 
         idempotencyService.acquireOrThrow(idemKey);
 
-        checkRateLimit(p.cardId());
+        checkRateLimit(customerQrPayload.cardId());
 
-        var payload = new TokenPayload("CUSTOMER_QR", p.cardId(), p.nonce(), p.exp(), p.sig());
-        tokenService.validateAndConsume(payload);
+        var tokenPayload = new TokenPayload("CUSTOMER_QR", customerQrPayload.cardId(),
+                customerQrPayload.nonce(), customerQrPayload.exp(), customerQrPayload.sig());
 
-        Card card = cardRepo.findById(p.cardId())
-                .orElseThrow(() -> new IllegalArgumentException("Card not found: " + p.cardId()));
+        tokenService.validateAndConsume(tokenPayload);
+
+        Card card = cardRepo.findById(customerQrPayload.cardId())
+                .orElseThrow(() -> new IllegalArgumentException("Card not found: " + customerQrPayload.cardId()));
 
         card.setStampsCount(card.getStampsCount() + 1);
         card = cardRepo.save(card);
@@ -63,13 +87,14 @@ public class StampsService {
         var stamp = new Stamp();
         stamp.setCard(card);
         stamp.setSource(StampSource.A);
-        if (meta != null) {
-            stamp.setUserAgent(meta.userAgent());
-            if (meta.locationId() != null) {
-                var locRef = locationRepo.getReferenceById(meta.locationId());
+        if (requestMeta != null) {
+            stamp.setUserAgent(requestMeta.userAgent());
+            if (requestMeta.locationId() != null) {
+                var locRef = locationRepo.getReferenceById(requestMeta.locationId());
                 stamp.setLocation(locRef);
             }
         }
+
         stampRepo.save(stamp);
 
         boolean rewardIssued = card.getStampsCount() >= stampsNeeded;
@@ -77,7 +102,7 @@ public class StampsService {
         return new StampResponse(true, card.getId(), card.getStampsCount(), stampsNeeded, rewardIssued);
     }
 
-    private void checkRateLimit(Long cardId) throws Exception {
+    private void checkRateLimit(Long cardId) {
         var since = OffsetDateTime.now().minusSeconds(rateWindowSeconds);
         boolean recent = stampRepo.existsRecentByCard(cardId, since);
         if (recent) {
