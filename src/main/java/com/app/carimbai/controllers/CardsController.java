@@ -38,7 +38,6 @@ public class CardsController {
             "— Uso: mostrar o QR na tela para o caixa escanear (Opção A).")
     @GetMapping("/{id}/qr")
     public ResponseEntity<QrTokenResponse> qr(@PathVariable Long id) {
-        var t = tokenService.issueCustomer(id);
-        return ResponseEntity.ok(new QrTokenResponse(t.type(), t.idRef(), t.nonce(), t.exp(), t.sig()));
+        return ResponseEntity.ok(tokenService.issueCustomer(id));
     }
 }

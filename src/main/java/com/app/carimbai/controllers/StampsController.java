@@ -1,11 +1,8 @@
 package com.app.carimbai.controllers;
 
-import com.app.carimbai.dtos.CustomerQrPayload;
-import com.app.carimbai.dtos.RequestMeta;
 import com.app.carimbai.dtos.StampRequest;
 import com.app.carimbai.dtos.StampResponse;
 import com.app.carimbai.services.StampsService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -18,17 +15,13 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import static com.app.carimbai.enums.StampType.CUSTOMER_QR;
-
 @RestController
 @RequestMapping("/api/stamp")
 public class StampsController {
 
-    private final ObjectMapper objectMapper;
     private final StampsService service;
 
-    public StampsController(ObjectMapper objectMapper, StampsService service) {
-        this.objectMapper = objectMapper;
+    public StampsController(StampsService service) {
         this.service = service;
     }
 

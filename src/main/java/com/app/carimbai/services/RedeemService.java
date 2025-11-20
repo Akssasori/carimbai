@@ -31,16 +31,16 @@ public class RedeemService {
     }
 
     @Transactional
-    public RedeemResponse redeem(RedeemRequest req) {
+    public RedeemResponse redeem(RedeemRequest redeemRequest) {
         
         Location location = null;
-        if (req.locationId() != null) {
-            location = locationRepo.findById(req.locationId())
-                    .orElseThrow(() -> new IllegalArgumentException("Location not found: " + req.locationId()));
+        if (redeemRequest.locationId() != null) {
+            location = locationRepo.findById(redeemRequest.locationId())
+                    .orElseThrow(() -> new IllegalArgumentException("Location not found: " + redeemRequest.locationId()));
         }
 
-        Card card = cardRepo.findById(req.cardId())
-                .orElseThrow(() -> new IllegalArgumentException("Card not found: " + req.cardId()));
+        Card card = cardRepo.findById(redeemRequest.cardId())
+                .orElseThrow(() -> new IllegalArgumentException("Card not found: " + redeemRequest.cardId()));
 
         if (card.getStampsCount() < stampsNeeded) {
             throw new IllegalStateException(

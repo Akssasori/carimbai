@@ -55,7 +55,7 @@ public class RedeemController {
             )
     )
     @PostMapping
-    public ResponseEntity<RedeemResponse> redeem(@Valid @RequestBody RedeemRequest req) {
-        return ResponseEntity.ok(service.redeem(req));
+    public ResponseEntity<RedeemResponse> redeem(@Valid @RequestBody RedeemRequest redeemRequest) {
+        return ResponseEntity.ok(service.redeem(redeemRequest));
     }
 }
