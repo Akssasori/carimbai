@@ -8,11 +8,9 @@ public class CorsGlobalConfig implements WebMvcConfigurer{
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOrigins("http://localhost:5173",
-                        "https://carimbai-app.vercel.app",
-                        "https://carimbai-production.up.railway.app")
-                .allowedMethods("GET","POST","PUT","DELETE","OPTIONS")
-                .allowedHeaders("Content-Type","Authorization","Idempotency-Key","X-Location-Id")
-                .allowCredentials(true);
+                .allowedOriginPatterns("*") // aceita qualquer origin
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+                .allowedHeaders("*")        // aceita qualquer header
+                .allowCredentials(false);   // importante: false quando usar "*"
     }
 }
