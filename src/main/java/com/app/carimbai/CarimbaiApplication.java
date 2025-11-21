@@ -13,7 +13,7 @@ public class CarimbaiApplication {
 
     public CarimbaiApplication(Environment env) {
         log.info("Active profiles: {}", Arrays.toString(env.getActiveProfiles()));
-        log.info("DB_URL: {}", env.getProperty("DB_URL"));
+        log.info("DB_URL_DEV: {}", env.getProperty("DB_URL_DEV"));
     }
 
 	public static void main(String[] args) {

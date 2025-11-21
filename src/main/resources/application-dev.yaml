@@ -10,7 +10,7 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: true
   datasource:
-    url: ${DB_URL}
+    url: ${DB_URL_DEV}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
