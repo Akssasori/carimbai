@@ -1,5 +1,6 @@
 package com.app.carimbai.services;
 
+import com.app.carimbai.dtos.QrTokenResponse;
 import com.app.carimbai.dtos.TokenPayload;
 import com.app.carimbai.models.StampToken;
 import com.app.carimbai.repositories.StampTokenRepository;
@@ -35,7 +36,14 @@ public class StampTokenService {
         });
     }
 
-    public TokenPayload issueCustomer(Long cardId) { return issue("CUSTOMER_QR", cardId); }
+    public QrTokenResponse issueCustomer(Long cardId) {
+        TokenPayload customerQr = issue("CUSTOMER_QR", cardId);
+        return new QrTokenResponse(customerQr.type(),
+                customerQr.idRef(),
+                customerQr.nonce(),
+                customerQr.exp(),
+                customerQr.sig());
+    }
     public TokenPayload issueStore(Long locationId) { return issue("STORE_QR", locationId); }
 
     private TokenPayload issue(String type, Long idRef) {
