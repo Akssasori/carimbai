@@ -8,27 +8,31 @@ import com.app.carimbai.models.fidelity.Reward;
 import com.app.carimbai.repositories.CardRepository;
 import com.app.carimbai.repositories.LocationRepository;
 import com.app.carimbai.repositories.RewardRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class RedeemService {
 
     private final CardRepository cardRepo;
     private final RewardRepository rewardRepo;
     private final LocationRepository locationRepo;
-    private final int stampsNeeded;
 
-    public RedeemService(CardRepository cardRepository,
-                         RewardRepository rewardRepo,
-                         LocationRepository locationRepo,
-                         @Value("${carimbai.stamps-needed:10}") int stampsNeeded) {
-        this.cardRepo = cardRepository;
-        this.rewardRepo = rewardRepo;
-        this.locationRepo = locationRepo;
-        this.stampsNeeded = stampsNeeded;
-    }
+    @Value("${carimbai.stamps-needed:10}")
+    private Integer defaultStampsNeeded;
+
+//    public RedeemService(CardRepository cardRepository,
+//                         RewardRepository rewardRepo,
+//                         LocationRepository locationRepo,
+//                         @Value("${carimbai.stamps-needed:10}") int stampsNeeded) {
+//        this.cardRepo = cardRepository;
+//        this.rewardRepo = rewardRepo;
+//        this.locationRepo = locationRepo;
+//        this.stampsNeeded = stampsNeeded;
+//    }
 
     @Transactional
     public RedeemResponse redeem(RedeemRequest redeemRequest) {
@@ -41,6 +45,11 @@ public class RedeemService {
 
         Card card = cardRepo.findById(redeemRequest.cardId())
                 .orElseThrow(() -> new IllegalArgumentException("Card not found: " + redeemRequest.cardId()));
+
+        var program = card.getProgram();
+        int stampsNeeded = program.getRuleTotalStamps() != null
+                ? program.getRuleTotalStamps()
+                : defaultStampsNeeded;
 
         if (card.getStampsCount() < stampsNeeded) {
             throw new IllegalStateException(

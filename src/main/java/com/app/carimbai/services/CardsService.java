@@ -4,9 +4,8 @@ import com.app.carimbai.dtos.CardItemDto;
 import com.app.carimbai.dtos.CardListResponse;
 import com.app.carimbai.dtos.admin.CreateCardRequest;
 import com.app.carimbai.models.fidelity.Card;
-import com.app.carimbai.models.fidelity.Customer;
-import com.app.carimbai.models.fidelity.Program;
 import com.app.carimbai.repositories.CardRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,22 +13,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class CardsService {
 
     private final CardRepository cardRepository;
-    private final Integer stampsNeeded;
     private final ProgramService programService;
     private final CustomerService customerService;
 
-    public CardsService(
-            CardRepository cardRepository,
-            @Value("${carimbai.stamps-needed}") Integer stampsNeeded, ProgramService programService, CustomerService customerService
-    ) {
-        this.cardRepository = cardRepository;
-        this.stampsNeeded = stampsNeeded;
-        this.programService = programService;
-        this.customerService = customerService;
-    }
+    @Value("${carimbai.stamps-needed:10}")
+    private Integer defaultStampsNeeded;
+
 
     @Transactional(readOnly = true)
     public CardListResponse getCustomerCards(Long customerId) {
@@ -45,6 +38,10 @@ public class CardsService {
     private CardItemDto toDto(Card card) {
         var program = card.getProgram();
         var merchant = program.getMerchant();
+
+        int stampsNeeded = program.getRuleTotalStamps() != null
+                ? program.getRuleTotalStamps()
+                : defaultStampsNeeded;
         
         boolean hasReward = card.getStampsCount() >= stampsNeeded;
         
