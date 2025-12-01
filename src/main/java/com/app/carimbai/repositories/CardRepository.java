@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface CardRepository extends JpaRepository<Card, Long> {
+
     Optional<Card> findByProgramIdAndCustomerId(Long programId, Long customerId);
 
     @Query("SELECT c FROM Card c " +

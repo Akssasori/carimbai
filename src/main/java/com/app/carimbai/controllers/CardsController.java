@@ -2,29 +2,34 @@ package com.app.carimbai.controllers;
 
 import com.app.carimbai.dtos.CardListResponse;
 import com.app.carimbai.dtos.QrTokenResponse;
+import com.app.carimbai.dtos.admin.AdminCardResponse;
+import com.app.carimbai.dtos.admin.CreateCardRequest;
+import com.app.carimbai.mappers.CardMapper;
 import com.app.carimbai.services.CardsService;
 import com.app.carimbai.services.StampTokenService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/cards")
+@RequiredArgsConstructor
 public class CardsController {
 
     private final StampTokenService tokenService;
     private final CardsService cardsService;
-
-    public CardsController(StampTokenService tokenService, CardsService cardsService) {
-        this.tokenService = tokenService;
-        this.cardsService = cardsService;
-    }
+    private final CardMapper cardMapper;
 
     @Operation(summary = "Lista todos os cartões do cliente",
                description = "Retorna todos os cartões de fidelidade do cliente com informações do programa e progresso.")
@@ -39,5 +44,15 @@ public class CardsController {
     @GetMapping("/{id}/qr")
     public ResponseEntity<QrTokenResponse> qr(@PathVariable Long id) {
         return ResponseEntity.ok(tokenService.issueCustomer(id));
+    }
+
+    @Operation(summary = "Cria um novo cartão de fidelidade para um cliente em um programa.",
+               description = "Cria um novo cartão de fidelidade associando um cliente a um programa específico.")
+    @PostMapping
+    public ResponseEntity<AdminCardResponse> createCard(@Valid @RequestBody CreateCardRequest request) {
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(cardMapper
+                .cardToAdminCardResponse(cardsService
+                        .createCard(request)));
     }
 }

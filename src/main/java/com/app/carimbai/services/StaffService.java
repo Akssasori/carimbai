@@ -1,8 +1,12 @@
 package com.app.carimbai.services;
 
+import com.app.carimbai.dtos.admin.CreateStaffUserRequest;
 import com.app.carimbai.enums.StaffRole;
+import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.repositories.StaffUserRepository;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -11,9 +15,11 @@ public class StaffService {
 
     private final StaffUserRepository repo;
     private final BCryptPasswordEncoder encoder;
+    private final MerchantService merchantService;
 
-    public StaffService(StaffUserRepository repo) {
+    public StaffService(StaffUserRepository repo, MerchantService merchantService) {
         this.repo = repo;
+        this.merchantService = merchantService;
         this.encoder = new BCryptPasswordEncoder(); // simples p/ MVP
     }
 
@@ -47,5 +53,20 @@ public class StaffService {
 
         user.setPinHash(encoder.encode(rawPin));
         repo.save(user);
+    }
+
+    public StaffUser createStaffUser(@Valid CreateStaffUserRequest request) {
+
+        Merchant merchant = merchantService.findById(request.merchantId());
+
+        var staffUser = StaffUser.builder()
+                .merchant(merchant)
+                .email(request.email())
+                .passwordHash(encoder.encode(request.password()))
+                .role(request.role())
+                .active(true)
+                .build();
+
+        return repo.save(staffUser);
     }
 }

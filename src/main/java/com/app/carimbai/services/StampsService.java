@@ -55,7 +55,7 @@ public class StampsService {
     }
 
     @Transactional
-    public StampResponse handleCustomer(StampRequest stampRequest, String userAgent, Long locationId,
+    public StampResponse applyStamp(StampRequest stampRequest, String userAgent, Long locationId,
                                         String idemKey) {
 
         if (stampRequest.type() != CUSTOMER_QR) {
