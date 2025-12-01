@@ -4,6 +4,7 @@ import com.app.carimbai.dtos.admin.CreateStaffUserRequest;
 import com.app.carimbai.dtos.admin.CreateStaffUserResponse;
 import com.app.carimbai.mappers.StaffMapper;
 import com.app.carimbai.services.StaffService;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,8 @@ public class StaffUserController {
     private final StaffMapper staffMapper;
     private final StaffService staffService;
 
+    @Operation( summary = "Create a new staff user",
+            description = "Creates a new staff user with the provided details.")
     @PostMapping("/staff-users")
     public ResponseEntity<CreateStaffUserResponse> createStaffUser(@Valid @RequestBody CreateStaffUserRequest request) {
 

@@ -61,6 +61,7 @@ public class CardsService {
         );
     }
 
+    @Transactional
     public Card createCard(CreateCardRequest request) {
 
         var program = programService.findById(request.programId());
@@ -78,4 +79,21 @@ public class CardsService {
                     return cardRepository.save(c);
                 });
     }
+
+    @Transactional
+    public Card getOrCreateCard(Long programId, Long customerId) {
+
+        var program = programService.findById(programId);
+        var customer = customerService.findById(customerId);
+
+        return cardRepository.findByProgramIdAndCustomerId(program.getId(), customer.getId())
+                .orElseGet(() -> {
+                    Card c = new Card();
+                    c.setProgram(program);
+                    c.setCustomer(customer);
+                    c.setStampsCount(0);
+                    return cardRepository.save(c);
+                });
+    }
+
 }

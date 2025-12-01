@@ -49,10 +49,10 @@ public class CardsController {
     @Operation(summary = "Cria um novo cartão de fidelidade para um cliente em um programa.",
                description = "Cria um novo cartão de fidelidade associando um cliente a um programa específico.")
     @PostMapping
-    public ResponseEntity<AdminCardResponse> createCard(@Valid @RequestBody CreateCardRequest request) {
+    public ResponseEntity<AdminCardResponse> createOrGetCard(@Valid @RequestBody CreateCardRequest request) {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(cardMapper
                 .cardToAdminCardResponse(cardsService
-                        .createCard(request)));
+                        .getOrCreateCard(request.programId(), request.customerId())));
     }
 }

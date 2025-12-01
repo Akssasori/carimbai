@@ -12,6 +12,7 @@ import com.app.carimbai.mappers.ProgramMapper;
 import com.app.carimbai.services.LocationService;
 import com.app.carimbai.services.MerchantService;
 import com.app.carimbai.services.ProgramService;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -34,14 +35,18 @@ public class MerchantController {
     private final MerchantService merchantService;
     private final MerchantMapper merchantMapper;
 
-    @PostMapping("/merchants")
+    @Operation( summary = "Create a new merchant",
+            description = "Creates a new merchant with the provided details.")
+    @PostMapping
     public ResponseEntity<CreateMerchantResponse> createMerchant(@Valid @RequestBody CreateMerchantRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(merchantMapper
                 .merchanToCreateMerchantResponse(merchantService
                         .createMerchant(request)));
     }
 
-    @PostMapping("/merchants/{merchantId}/locations")
+    @Operation( summary = "Create a new location for a merchant",
+            description = "Creates a new location associated with the specified merchant.")
+    @PostMapping("/{merchantId}/locations")
     public ResponseEntity<CreateLocationResponse> createLocation(@PathVariable Long merchantId,
                                                                  @Valid @RequestBody CreateLocationRequest request) {
 
@@ -50,7 +55,9 @@ public class MerchantController {
                         .saveLocationByMerchantId(merchantId, request)));
     }
 
-    @PostMapping("/merchants/{merchantId}/programs")
+    @Operation( summary = "Create a new program for a merchant",
+            description = "Creates a new loyalty program associated with the specified merchant.")
+    @PostMapping("/{merchantId}/programs")
     public ResponseEntity<CreateProgramResponse> createProgram(@PathVariable Long merchantId,
                                                                @Valid @RequestBody CreateProgramRequest request) {
 
