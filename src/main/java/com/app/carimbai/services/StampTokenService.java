@@ -54,9 +54,13 @@ public class StampTokenService {
         return new TokenPayload(type, idRef, nonce, exp.toEpochSecond(), sig);
     }
 
-    public void validateAndConsume(TokenPayload p) {
+    public StampToken validateAndConsume(TokenPayload p) {
         // exp
-        var expTime = OffsetDateTime.ofInstant(java.time.Instant.ofEpochSecond(p.exp()), java.time.ZoneOffset.UTC);
+        var expTime = OffsetDateTime.ofInstant(
+                java.time.Instant.ofEpochSecond(p.exp()),
+                java.time.ZoneOffset.UTC
+        );
+
         if (OffsetDateTime.now().isAfter(expTime)) throw new IllegalArgumentException("Token expired");
 
         // assinatura
@@ -74,7 +78,7 @@ public class StampTokenService {
         entity.setExpAt(expTime);
         entity.setUsedAt(OffsetDateTime.now());
         entity.setSignature(p.sig());
-        stampTokenRepository.save(entity);
+        return stampTokenRepository.save(entity);
     }
 
     private String payload(Long idRef, UUID nonce, OffsetDateTime exp) {

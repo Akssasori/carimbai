@@ -21,4 +21,12 @@ public class SecurityUtils {
         }
         return staff;
     }
+
+    public static StaffUser getCurrentStaffUserOrThrow() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof StaffUser staff)) {
+            throw new IllegalStateException("No authenticated staff user");
+        }
+        return staff;
+    }
 }

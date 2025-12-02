@@ -7,6 +7,7 @@ import com.app.carimbai.dtos.StampResponse;
 import com.app.carimbai.dtos.TokenPayload;
 import com.app.carimbai.enums.StampSource;
 import com.app.carimbai.execption.TooManyStampsException;
+import com.app.carimbai.models.StampToken;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.models.fidelity.Stamp;
@@ -51,9 +52,10 @@ public class StampsService {
             throw new IllegalArgumentException("Tipo de carimbo inválido para este endpoint.");
         }
 
+        // payload do QR
         var customerQrPayload = objectMapper.convertValue(stampRequest.payload(), CustomerQrPayload.class);
 
-        // staff logado (CASHIER ou ADMIN, no teu caso)
+        // staff logado (CASHIER ou ADMIN)
         StaffUser staffUser = SecurityUtils.getRequiredStaffUser();
 
         RequestMeta requestMeta = null;
@@ -61,25 +63,37 @@ public class StampsService {
             requestMeta =  new RequestMeta(userAgent, locationId);
         }
 
+        // idempotência por chamada
         idempotencyService.acquireOrThrow(idemKey);
 
+        // rate-limit por cartão
         checkRateLimit(customerQrPayload.cardId());
 
-        var tokenPayload = new TokenPayload("CUSTOMER_QR", customerQrPayload.cardId(),
-                customerQrPayload.nonce(), customerQrPayload.exp(), customerQrPayload.sig());
+        // valida token + persiste uso → precisamos do tokenId
+        var tokenPayload = new TokenPayload(
+                "CUSTOMER_QR",
+                customerQrPayload.cardId(),
+                customerQrPayload.nonce(),
+                customerQrPayload.exp(),
+                customerQrPayload.sig()
+        );
 
-        tokenService.validateAndConsume(tokenPayload);
+        StampToken savedToken = tokenService.validateAndConsume(tokenPayload);
 
+        // carrega card
         Card card = cardRepo.findById(customerQrPayload.cardId())
                 .orElseThrow(() -> new IllegalArgumentException("Card not found: " + customerQrPayload.cardId()));
 
+        // incrementa contagem
         card.setStampsCount(card.getStampsCount() + 1);
         card = cardRepo.save(card);
 
+        // monta Stamp
         var stamp = new Stamp();
         stamp.setCard(card);
         stamp.setSource(StampSource.A);
         stamp.setCashier(staffUser);
+        stamp.setTokenId(savedToken.getId());
 
         if (requestMeta != null) {
             stamp.setUserAgent(requestMeta.userAgent());
@@ -105,7 +119,12 @@ public class StampsService {
 
         boolean rewardIssued = card.getStampsCount() >= stampsNeeded;
 
-        return new StampResponse(true, card.getId(), card.getStampsCount(), stampsNeeded, rewardIssued);
+        return new StampResponse(true,
+                card.getId(),
+                card.getStampsCount(),
+                stampsNeeded,
+                rewardIssued
+        );
     }
 
     private void checkRateLimit(Long cardId) {

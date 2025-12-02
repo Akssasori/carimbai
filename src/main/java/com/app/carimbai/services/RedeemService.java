@@ -40,7 +40,7 @@ public class RedeemService {
             location = locationRepo.findById(redeemRequest.locationId())
                     .orElseThrow(() -> new IllegalArgumentException("Location not found: " + redeemRequest.locationId()));
 
-            // valida se location é do merchant do staff
+            // garante que location pertence ao merchant do staff
             if (!location.getMerchant().getId().equals(staffUser.getMerchant().getId())) {
                 throw new IllegalArgumentException("Location does not belong to staff merchant");
             }
@@ -79,7 +79,11 @@ public class RedeemService {
         card.setStampsCount(0);
         cardRepo.save(card);
 
-        return new RedeemResponse(true, reward.getId(), card.getId(), card.getStampsCount());
+        return new RedeemResponse(true,
+                reward.getId(),
+                card.getId(),
+                card.getStampsCount()
+        );
     }
 
     private boolean isRequirePinOnRedeem(Location location) {
