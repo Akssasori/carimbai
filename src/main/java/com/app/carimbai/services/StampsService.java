@@ -14,10 +14,9 @@ import com.app.carimbai.repositories.LocationRepository;
 import com.app.carimbai.repositories.StampRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import java.time.OffsetDateTime;
 import java.util.Objects;
@@ -25,6 +24,7 @@ import java.util.Objects;
 import static com.app.carimbai.enums.StampType.CUSTOMER_QR;
 
 @Service
+@RequiredArgsConstructor
 public class StampsService {
 
     private final StampTokenService tokenService;
@@ -33,29 +33,16 @@ public class StampsService {
     private final LocationRepository locationRepo;
     private final IdempotencyService idempotencyService;
     private final ObjectMapper objectMapper;
-    private final int rateWindowSeconds;
-    private final int stampsNeeded;
 
-    public StampsService(StampTokenService tokenService,
-                         CardRepository cardRepo,
-                         StampRepository stampRepo,
-                         LocationRepository locationRepo,
-                         IdempotencyService idempotencyService,
-                         ObjectMapper objectMapper,
-                         @Value("${carimbai.rate-limit.seconds:120}") int rateWindowSeconds,
-                         @Value("${carimbai.stamps-needed:10}") int stampsNeeded) {
-        this.tokenService = tokenService;
-        this.cardRepo = cardRepo;
-        this.stampRepo = stampRepo;
-        this.locationRepo = locationRepo;
-        this.idempotencyService = idempotencyService;
-        this.objectMapper = objectMapper;
-        this.rateWindowSeconds = rateWindowSeconds;
-        this.stampsNeeded = stampsNeeded;
-    }
+    @Value("${carimbai.rate-limit.seconds:120}")
+    private Integer rateWindowSeconds;
+
+    @Value("${carimbai.stamps-needed:10}")
+    private Integer defaultStampsNeeded;
+
 
     @Transactional
-    public StampResponse handleCustomer(StampRequest stampRequest, String userAgent, Long locationId,
+    public StampResponse applyStamp(StampRequest stampRequest, String userAgent, Long locationId,
                                         String idemKey) {
 
         if (stampRequest.type() != CUSTOMER_QR) {
@@ -96,6 +83,11 @@ public class StampsService {
         }
 
         stampRepo.save(stamp);
+
+        var program = card.getProgram();
+        int stampsNeeded = program.getRuleTotalStamps() != null
+                ? program.getRuleTotalStamps()
+                : defaultStampsNeeded;
 
         boolean rewardIssued = card.getStampsCount() >= stampsNeeded;
 

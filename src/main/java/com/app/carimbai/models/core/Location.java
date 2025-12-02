@@ -1,5 +1,6 @@
 package com.app.carimbai.models.core;
 
+import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -10,13 +11,16 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Type;
 
 @Entity
 @Getter
 @Setter
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "locations", schema = "core")
@@ -26,10 +30,13 @@ public class Location {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable=false, length=120) private String name;
+    @Column(nullable=false, length=120)
+    private String name;
+
     private String address;
 
     @Column(columnDefinition = "jsonb not null default '{}'::jsonb")
+    @Type(JsonType.class)
     private String flags = "{}";
 
     @ManyToOne(fetch = FetchType.LAZY)

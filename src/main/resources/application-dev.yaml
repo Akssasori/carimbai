@@ -31,5 +31,6 @@ springdoc:
 carimbai:
   hmac-secret: ${CARIMBAI_HMAC_SECRET:dev-secret-change-me}
   stamps-needed: 10
+  stamps-default-needed: 10
   rate-limit:
     seconds: 120

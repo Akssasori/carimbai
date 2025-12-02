@@ -68,6 +68,6 @@ public class StampsController {
             @RequestHeader(name = "X-Location-Id", required = false) Long locationId,
             @RequestHeader(name = "Idempotency-Key") String idemKey
     ) {
-        return ResponseEntity.ok(service.handleCustomer(stampRequest, userAgent, locationId, idemKey));
+        return ResponseEntity.ok(service.applyStamp(stampRequest, userAgent, locationId, idemKey));
     }
 }
