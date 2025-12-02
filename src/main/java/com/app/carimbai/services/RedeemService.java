@@ -24,16 +24,6 @@ public class RedeemService {
     @Value("${carimbai.stamps-needed:10}")
     private Integer defaultStampsNeeded;
 
-//    public RedeemService(CardRepository cardRepository,
-//                         RewardRepository rewardRepo,
-//                         LocationRepository locationRepo,
-//                         @Value("${carimbai.stamps-needed:10}") int stampsNeeded) {
-//        this.cardRepo = cardRepository;
-//        this.rewardRepo = rewardRepo;
-//        this.locationRepo = locationRepo;
-//        this.stampsNeeded = stampsNeeded;
-//    }
-
     @Transactional
     public RedeemResponse redeem(RedeemRequest redeemRequest) {
         
