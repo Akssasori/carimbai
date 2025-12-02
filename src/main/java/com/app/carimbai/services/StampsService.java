@@ -7,11 +7,13 @@ import com.app.carimbai.dtos.StampResponse;
 import com.app.carimbai.dtos.TokenPayload;
 import com.app.carimbai.enums.StampSource;
 import com.app.carimbai.execption.TooManyStampsException;
+import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.models.fidelity.Stamp;
 import com.app.carimbai.repositories.CardRepository;
 import com.app.carimbai.repositories.LocationRepository;
 import com.app.carimbai.repositories.StampRepository;
+import com.app.carimbai.utils.SecurityUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +53,9 @@ public class StampsService {
 
         var customerQrPayload = objectMapper.convertValue(stampRequest.payload(), CustomerQrPayload.class);
 
+        // staff logado (CASHIER ou ADMIN, no teu caso)
+        StaffUser staffUser = SecurityUtils.getRequiredStaffUser();
+
         RequestMeta requestMeta = null;
         if (Objects.nonNull(userAgent) && Objects.nonNull(locationId)) {
             requestMeta =  new RequestMeta(userAgent, locationId);
@@ -74,10 +79,19 @@ public class StampsService {
         var stamp = new Stamp();
         stamp.setCard(card);
         stamp.setSource(StampSource.A);
+        stamp.setCashier(staffUser);
+
         if (requestMeta != null) {
             stamp.setUserAgent(requestMeta.userAgent());
             if (requestMeta.locationId() != null) {
-                var locRef = locationRepo.getReferenceById(requestMeta.locationId());
+                var locRef = locationRepo.findById(requestMeta.locationId())
+                        .orElseThrow(() -> new IllegalArgumentException("Location not found"));
+
+                // valida se location é do mesmo merchant do staff
+                if (!locRef.getMerchant().getId().equals(staffUser.getMerchant().getId())) {
+                    throw new IllegalArgumentException("Location does not belong to staff merchant");
+                }
+
                 stamp.setLocation(locRef);
             }
         }
