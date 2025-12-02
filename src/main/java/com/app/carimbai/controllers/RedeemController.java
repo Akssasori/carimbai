@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -54,6 +55,7 @@ public class RedeemController {
                     }
             )
     )
+    @PreAuthorize("hasAnyAuthority('CASHIER','ADMIN')")
     @PostMapping
     public ResponseEntity<RedeemResponse> redeem(@Valid @RequestBody RedeemRequest redeemRequest) {
         return ResponseEntity.ok(service.redeem(redeemRequest));
