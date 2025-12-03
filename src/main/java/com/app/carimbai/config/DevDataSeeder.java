@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
 
 
 @Component
-@Profile("dev") // só roda com profile dev
+@Profile("stg") // só roda com profile dev
 public class DevDataSeeder implements CommandLineRunner {
 
     private final MerchantRepository merchantRepo;
