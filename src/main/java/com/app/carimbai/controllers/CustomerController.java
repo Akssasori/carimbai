@@ -2,6 +2,8 @@ package com.app.carimbai.controllers;
 
 import com.app.carimbai.dtos.admin.CreateCustomerRequest;
 import com.app.carimbai.dtos.admin.CreateCustomerResponse;
+import com.app.carimbai.dtos.customer.CustomerLoginRequest;
+import com.app.carimbai.dtos.customer.CustomerLoginResponse;
 import com.app.carimbai.mappers.CustomerMapper;
 import com.app.carimbai.services.CustomerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,5 +33,10 @@ public class CustomerController {
                 .customerToCreateCustomerResponse(customerService
                         .createCustomer(request)));
 
+    }
+
+    @PostMapping("/login-or-register")
+    public ResponseEntity<CustomerLoginResponse> loginOrRegister(@RequestBody CustomerLoginRequest request) {
+        return ResponseEntity.ok(customerMapper.customerToCustomerLoginResponse(customerService.loginOrRegister(request), true));
     }
 }
