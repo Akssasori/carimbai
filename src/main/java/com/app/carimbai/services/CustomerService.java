@@ -2,10 +2,8 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.admin.CreateCustomerRequest;
 import com.app.carimbai.dtos.customer.CustomerLoginRequest;
-import com.app.carimbai.dtos.customer.CustomerLoginResponse;
 import com.app.carimbai.models.fidelity.Customer;
 import com.app.carimbai.repositories.CustomerRepository;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +16,7 @@ public class CustomerService {
 
     private final CustomerRepository customerRepository;
 
-    public Customer createCustomer(@Valid CreateCustomerRequest request) {
+    public Customer createCustomer(CreateCustomerRequest request) {
         return customerRepository.save(Customer.builder()
                 .email(request.email())
                 .phone(request.phone())
@@ -32,7 +30,7 @@ public class CustomerService {
     }
 
     @Transactional
-    public Customer loginOrRegister(CustomerLoginRequest req) {
+    public Customer loginOrRegister(CustomerLoginRequest request) {
 
         // Estratégia simples de match:
         // 1) providerId (se informado)
@@ -40,14 +38,14 @@ public class CustomerService {
         // 3) senão, phone
         Optional<Customer> existingOpt = Optional.empty();
 
-        if (req.providerId() != null && !req.providerId().isBlank()) {
-            existingOpt = customerRepository.findByProviderId(req.providerId());
+        if (request.providerId() != null && !request.providerId().isBlank()) {
+            existingOpt = customerRepository.findByProviderId(request.providerId());
         }
-        if (existingOpt.isEmpty() && req.email() != null && !req.email().isBlank()) {
-            existingOpt = customerRepository.findByEmail(req.email());
+        if (existingOpt.isEmpty() && request.email() != null && !request.email().isBlank()) {
+            existingOpt = customerRepository.findByEmail(request.email());
         }
-        if (existingOpt.isEmpty() && req.phone() != null && !req.phone().isBlank()) {
-            existingOpt = customerRepository.findByPhone(req.phone());
+        if (existingOpt.isEmpty() && request.phone() != null && !request.phone().isBlank()) {
+            existingOpt = customerRepository.findByPhone(request.phone());
         }
 
         boolean created = false;
@@ -56,24 +54,24 @@ public class CustomerService {
         if (existingOpt.isPresent()) {
             customer = existingOpt.get();
             // opcional: atualizar dados se vierem preenchidos
-            if (req.name() != null && !req.name().isBlank()) {
-                customer.setName(req.name());
+            if (request.name() != null && !request.name().isBlank()) {
+                customer.setName(request.name());
             }
-            if (req.email() != null && !req.email().isBlank()) {
-                customer.setEmail(req.email());
+            if (request.email() != null && !request.email().isBlank()) {
+                customer.setEmail(request.email());
             }
-            if (req.phone() != null && !req.phone().isBlank()) {
-                customer.setPhone(req.phone());
+            if (request.phone() != null && !request.phone().isBlank()) {
+                customer.setPhone(request.phone());
             }
-            if (req.providerId() != null && !req.providerId().isBlank()) {
-                customer.setProviderId(req.providerId());
+            if (request.providerId() != null && !request.providerId().isBlank()) {
+                customer.setProviderId(request.providerId());
             }
         } else {
             customer = new Customer();
-            customer.setName(req.name());
-            customer.setEmail(req.email());
-            customer.setPhone(req.phone());
-            customer.setProviderId(req.providerId());
+            customer.setName(request.name());
+            customer.setEmail(request.email());
+            customer.setPhone(request.phone());
+            customer.setProviderId(request.providerId());
             created = true;
         }
 

@@ -2,16 +2,16 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.models.IdempotencyKey;
 import com.app.carimbai.repositories.IdempotencyKeyRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class IdempotencyService {
 
     private final IdempotencyKeyRepository repo;
-
-    public IdempotencyService(IdempotencyKeyRepository repo) { this.repo = repo; }
 
     @Transactional
     public void acquireOrThrow(String key) {

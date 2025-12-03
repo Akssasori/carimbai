@@ -6,21 +6,17 @@ import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.repositories.StaffUserRepository;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class StaffService {
 
     private final StaffUserRepository staffUserRepository;
     private final BCryptPasswordEncoder encoder;
     private final MerchantService merchantService;
-
-    public StaffService(StaffUserRepository staffUserRepository, MerchantService merchantService) {
-        this.staffUserRepository = staffUserRepository;
-        this.merchantService = merchantService;
-        this.encoder = new BCryptPasswordEncoder(); // simples p/ MVP
-    }
 
     public StaffUser validateCashierPin(Long cashierId, String pin) {
         if (cashierId == null || pin == null || pin.isBlank())
