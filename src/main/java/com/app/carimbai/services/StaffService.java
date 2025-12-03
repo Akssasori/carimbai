@@ -6,19 +6,18 @@ import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.repositories.StaffUserRepository;
 import jakarta.validation.Valid;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 public class StaffService {
 
-    private final StaffUserRepository repo;
+    private final StaffUserRepository staffUserRepository;
     private final BCryptPasswordEncoder encoder;
     private final MerchantService merchantService;
 
-    public StaffService(StaffUserRepository repo, MerchantService merchantService) {
-        this.repo = repo;
+    public StaffService(StaffUserRepository staffUserRepository, MerchantService merchantService) {
+        this.staffUserRepository = staffUserRepository;
         this.merchantService = merchantService;
         this.encoder = new BCryptPasswordEncoder(); // simples p/ MVP
     }
@@ -27,7 +26,7 @@ public class StaffService {
         if (cashierId == null || pin == null || pin.isBlank())
             throw new IllegalArgumentException("Missing cashierId or PIN");
 
-        var user = repo.findById(cashierId)
+        var user = staffUserRepository.findById(cashierId)
                 .orElseThrow(() -> new IllegalArgumentException("Cashier not found"));
 
         if (user.getRole() != StaffRole.CASHIER || Boolean.FALSE.equals(user.getActive()))
@@ -45,14 +44,14 @@ public class StaffService {
         if (rawPin == null || rawPin.length() < 4 || rawPin.length() > 10)
             throw new IllegalArgumentException("PIN must be 4..10 digits");
 
-        var user = repo.findById(cashierId)
+        var user = staffUserRepository.findById(cashierId)
                 .orElseThrow(() -> new IllegalArgumentException("Cashier not found"));
 
         if (user.getRole() != StaffRole.CASHIER)
             throw new IllegalArgumentException("Only CASHIER can have redeem PIN");
 
         user.setPinHash(encoder.encode(rawPin));
-        repo.save(user);
+        staffUserRepository.save(user);
     }
 
     public StaffUser createStaffUser(@Valid CreateStaffUserRequest request) {
@@ -67,6 +66,6 @@ public class StaffService {
                 .active(true)
                 .build();
 
-        return repo.save(staffUser);
+        return staffUserRepository.save(staffUser);
     }
 }
