@@ -58,24 +58,24 @@ public class CardsService {
         );
     }
 
-    @Transactional
-    public Card createCard(CreateCardRequest request) {
-
-        var program = programService.findById(request.programId());
-        var customer = customerService.findById(request.customerId());
-
-        // Honra o unique (program, customer): se já existir, apenas retorna
-        return cardRepository.findByProgramIdAndCustomerId(program.getId(), customer.getId())
-                .orElseGet(() -> {
-                    Card c = new Card();
-                    c.setProgram(program);
-                    c.setCustomer(customer);
-                    c.setStampsCount(0);
-                    // status default ACTIVE já está no @Builder, mas set explicito:
-                    // c.setStatus(CardStatus.ACTIVE);
-                    return cardRepository.save(c);
-                });
-    }
+//    @Transactional
+//    public Card createCard(CreateCardRequest request) {
+//
+//        var program = programService.findById(request.programId());
+//        var customer = customerService.findById(request.customerId());
+//
+//        // Honra o unique (program, customer): se já existir, apenas retorna
+//        return cardRepository.findByProgramIdAndCustomerId(program.getId(), customer.getId())
+//                .orElseGet(() -> {
+//                    Card c = new Card();
+//                    c.setProgram(program);
+//                    c.setCustomer(customer);
+//                    c.setStampsCount(0);
+//                    // status default ACTIVE já está no @Builder, mas set explicito:
+//                    // c.setStatus(CardStatus.ACTIVE);
+//                    return cardRepository.save(c);
+//                });
+//    }
 
     @Transactional
     public Card getOrCreateCard(Long programId, Long customerId) {

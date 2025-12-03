@@ -35,6 +35,8 @@ public class CustomerController {
 
     }
 
+    @Operation( summary = "Customer Login or Register",
+            description = "Logs in an existing customer or registers a new one based on the provided details.")
     @PostMapping("/login-or-register")
     public ResponseEntity<CustomerLoginResponse> loginOrRegister(@RequestBody CustomerLoginRequest request) {
         return ResponseEntity.ok(customerMapper.customerToCustomerLoginResponse(customerService.loginOrRegister(request), true));
