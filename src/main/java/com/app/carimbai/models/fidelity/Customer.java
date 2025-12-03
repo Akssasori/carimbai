@@ -33,4 +33,6 @@ public class Customer {
     private String phone;
     @Column(name="provider_id", length=80)
     private String providerId;
+    @Column(length = 120)
+    private String name;
 }

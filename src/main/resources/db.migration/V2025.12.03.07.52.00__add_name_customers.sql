@@ -1,0 +1,2 @@
+ALTER TABLE fidelity.customers
+  ADD COLUMN IF NOT EXISTS name VARCHAR(120);

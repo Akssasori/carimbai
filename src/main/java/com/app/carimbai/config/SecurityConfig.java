@@ -36,6 +36,7 @@ public class SecurityConfig {
                         // Libera auth e docs
                         .requestMatchers(
                                 "/api/auth/**",
+                                "/api/customers/login-or-register",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
