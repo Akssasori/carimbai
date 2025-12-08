@@ -2,7 +2,6 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.CardItemDto;
 import com.app.carimbai.dtos.CardListResponse;
-import com.app.carimbai.dtos.admin.CreateCardRequest;
 import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.repositories.CardRepository;
 import lombok.RequiredArgsConstructor;
@@ -11,10 +10,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
-public class CardsService {
+public class CardService {
 
     private final CardRepository cardRepository;
     private final ProgramService programService;
@@ -93,4 +93,11 @@ public class CardsService {
                 });
     }
 
+    public Optional<Card> findByProgramIdAndCustomerId(Long programId, Long customerId) {
+        return cardRepository.findByProgramIdAndCustomerId(programId, customerId);
+    }
+
+    public Card save(Card card) {
+        return cardRepository.save(card);
+    }
 }

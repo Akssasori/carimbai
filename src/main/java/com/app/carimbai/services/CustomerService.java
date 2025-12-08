@@ -2,7 +2,9 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.admin.CreateCustomerRequest;
 import com.app.carimbai.dtos.customer.CustomerLoginRequest;
+import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.models.fidelity.Customer;
+import com.app.carimbai.models.fidelity.Program;
 import com.app.carimbai.repositories.CustomerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -14,7 +16,10 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class CustomerService {
 
+    public static final long DEFAULT_PROGRAM_ID = 1L;
     private final CustomerRepository customerRepository;
+    private final ProgramService programService;
+    private final CardService cardService;
 
     public Customer createCustomer(CreateCustomerRequest request) {
         return customerRepository.save(Customer.builder()
@@ -75,7 +80,38 @@ public class CustomerService {
             created = true;
         }
 
-        return customerRepository.save(customer);
+        customer = customerRepository.save(customer);
 
+        ensureDefaultCard(customer);
+
+        return customer;
+
+    }
+
+    private void ensureDefaultCard(Customer customer) {
+
+        Program program = programService.findById(DEFAULT_PROGRAM_ID);
+
+        if (program == null) {
+            // não tem programa cadastrado ainda, não faz nada
+            return;
+        }
+
+        // já existe cartão para esse programa + cliente?
+        boolean exists = cardService
+                .findByProgramIdAndCustomerId(program.getId(), customer.getId())
+                .isPresent();
+
+        if (exists) {
+            return;
+        }
+
+        // se não, cria um card zerado
+        Card card = new Card();
+        card.setProgram(program);
+        card.setCustomer(customer);
+        card.setStampsCount(0);
+        // status e createdAt já tem default na entidade
+        cardService.save(card);
     }
 }
