@@ -35,14 +35,6 @@ public class CardsController {
         return ResponseEntity.ok(cardService.getCustomerCards(customerId));
     }
 
-    @Operation(summary = "Emite o QR do cliente (gera o token).", description = "Gera o token efêmero (que você " +
-            "renderiza como QR) do cliente. — Quem chama: PWA do cliente (tela \"Meu Cartão\")." +
-            "— Uso: mostrar o QR na tela para o caixa escanear (Opção A).")
-    @GetMapping("/{id}/qr")
-    public ResponseEntity<QrTokenResponse> qr(@PathVariable Long id) {
-        return ResponseEntity.ok(tokenService.issueCustomer(id));
-    }
-
     @Operation(summary = "Cria um novo cartão de fidelidade para um cliente em um programa.",
                description = "Cria um novo cartão de fidelidade associando um cliente a um programa específico.")
     @PostMapping

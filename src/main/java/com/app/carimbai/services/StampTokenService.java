@@ -36,7 +36,7 @@ public class StampTokenService {
         });
     }
 
-    public QrTokenResponse issueCustomer(Long cardId) {
+    public QrTokenResponse generateQrCustomer(Long cardId) {
         TokenPayload customerQr = issue("CUSTOMER_QR", cardId);
         return new QrTokenResponse(customerQr.type(),
                 customerQr.idRef(),
