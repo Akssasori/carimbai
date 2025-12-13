@@ -21,7 +21,7 @@ public class StampTokenService {
     private final StampTokenRepository stampTokenRepository;
     private final ThreadLocal<Mac> macThreadLocal;
 
-    private static final Duration TTL = Duration.ofMinutes(45);
+    private static final Duration TTL = Duration.ofMinutes(1);
 
     public StampTokenService(StampTokenRepository stampTokenRepository, @Value("${carimbai.hmac-secret}") String secret) {
         this.stampTokenRepository = stampTokenRepository;
@@ -36,7 +36,7 @@ public class StampTokenService {
         });
     }
 
-    public QrTokenResponse issueCustomer(Long cardId) {
+    public QrTokenResponse generateQrCustomer(Long cardId) {
         TokenPayload customerQr = issue("CUSTOMER_QR", cardId);
         return new QrTokenResponse(customerQr.type(),
                 customerQr.idRef(),

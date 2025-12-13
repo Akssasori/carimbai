@@ -2,7 +2,9 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.admin.CreateCustomerRequest;
 import com.app.carimbai.dtos.customer.CustomerLoginRequest;
+import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.models.fidelity.Customer;
+import com.app.carimbai.models.fidelity.Program;
 import com.app.carimbai.repositories.CustomerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -13,6 +15,7 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class CustomerService {
+
 
     private final CustomerRepository customerRepository;
 
@@ -75,7 +78,11 @@ public class CustomerService {
             created = true;
         }
 
-        return customerRepository.save(customer);
+        customer = customerRepository.save(customer);
+
+
+        return customer;
 
     }
+
 }

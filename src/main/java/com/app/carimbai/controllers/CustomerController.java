@@ -4,6 +4,7 @@ import com.app.carimbai.dtos.admin.CreateCustomerRequest;
 import com.app.carimbai.dtos.admin.CreateCustomerResponse;
 import com.app.carimbai.dtos.customer.CustomerLoginRequest;
 import com.app.carimbai.dtos.customer.CustomerLoginResponse;
+import com.app.carimbai.facade.UserRegistrationFacade;
 import com.app.carimbai.mappers.CustomerMapper;
 import com.app.carimbai.services.CustomerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +24,7 @@ public class CustomerController {
 
     private final CustomerService customerService;
     private final CustomerMapper customerMapper;
+    private final UserRegistrationFacade userRegistrationFacade;
 
     @Operation( summary = "Create a new customer",
             description = "Creates a new customer with the provided details.")
@@ -39,6 +41,6 @@ public class CustomerController {
             description = "Logs in an existing customer or registers a new one based on the provided details.")
     @PostMapping("/login-or-register")
     public ResponseEntity<CustomerLoginResponse> loginOrRegister(@RequestBody CustomerLoginRequest request) {
-        return ResponseEntity.ok(customerMapper.customerToCustomerLoginResponse(customerService.loginOrRegister(request), true));
+        return ResponseEntity.ok(customerMapper.customerToCustomerLoginResponse(userRegistrationFacade.registerUser(request), true));
     }
 }
