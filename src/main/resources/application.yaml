@@ -12,11 +12,11 @@ springdoc:
   swagger-ui:
     path: /
 carimbai:
-  hmac-secret: ${CARIMBAI_HMAC_SECRET:dev-secret-change-me}
+  hmac-secret: ${CARIMBAI_HMAC_SECRET}
   stamps-needed: 10
   stamps-default-needed: 10
   rate-limit:
     seconds: 120
   jwt:
-    secret: ${CARIMBAI_JWT_SECRET:h9V$3uP!Qk2zA7mF@0sYwE4#RbT8nLjC}
+    secret: ${CARIMBAI_JWT_SECRET}
     expiration-seconds: 28800
