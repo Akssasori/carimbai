@@ -21,7 +21,7 @@ public class StampTokenService {
     private final StampTokenRepository stampTokenRepository;
     private final ThreadLocal<Mac> macThreadLocal;
 
-    private static final Duration TTL = Duration.ofMinutes(45);
+    private static final Duration TTL = Duration.ofMinutes(1);
 
     public StampTokenService(StampTokenRepository stampTokenRepository, @Value("${carimbai.hmac-secret}") String secret) {
         this.stampTokenRepository = stampTokenRepository;
