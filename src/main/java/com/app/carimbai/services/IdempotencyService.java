@@ -1,5 +1,6 @@
 package com.app.carimbai.services;
 
+import com.app.carimbai.execption.DuplicateIdempotencyKeyException;
 import com.app.carimbai.models.IdempotencyKey;
 import com.app.carimbai.repositories.IdempotencyKeyRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,7 @@ public class IdempotencyService {
             repo.save(entity);
         } catch (DataIntegrityViolationException dup) {
             // unique violation => já processado
-            throw new IllegalStateException("Duplicate Idempotency-Key");
+            throw new DuplicateIdempotencyKeyException(key);
         }
     }
 }

@@ -7,6 +7,7 @@ import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.repositories.StaffUserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -62,6 +63,10 @@ public class StaffService {
                 .active(true)
                 .build();
 
-        return staffUserRepository.save(staffUser);
+        try {
+            return staffUserRepository.save(staffUser);
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalArgumentException("Email already in use");
+        }
     }
 }

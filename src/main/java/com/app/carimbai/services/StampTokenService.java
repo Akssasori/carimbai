@@ -4,6 +4,8 @@ import com.app.carimbai.dtos.QrTokenResponse;
 import com.app.carimbai.dtos.TokenPayload;
 import com.app.carimbai.models.StampToken;
 import com.app.carimbai.repositories.StampTokenRepository;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -16,15 +18,21 @@ import java.util.Base64;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class StampTokenService {
 
     private final StampTokenRepository stampTokenRepository;
-    private final ThreadLocal<Mac> macThreadLocal;
 
-    private static final Duration TTL = Duration.ofMinutes(1);
+    private ThreadLocal<Mac> macThreadLocal;
 
-    public StampTokenService(StampTokenRepository stampTokenRepository, @Value("${carimbai.hmac-secret}") String secret) {
-        this.stampTokenRepository = stampTokenRepository;
+    @Value("${carimbai.hmac-secret}")
+    private String secret;
+
+    @Value("${carimbai.qr-ttl.seconds:90}")
+    private Integer qrTtlSeconds;
+
+    @PostConstruct
+    private void init() {
         this.macThreadLocal = ThreadLocal.withInitial(() -> {
             try {
                 Mac mac = Mac.getInstance("HmacSHA256");
@@ -44,14 +52,19 @@ public class StampTokenService {
                 customerQr.exp(),
                 customerQr.sig());
     }
+
     public TokenPayload issueStore(Long locationId) { return issue("STORE_QR", locationId); }
 
     private TokenPayload issue(String type, Long idRef) {
         var nonce = UUID.randomUUID();
-        var exp = OffsetDateTime.now().plus(TTL);
+        var exp = OffsetDateTime.now().plus(getQrTtl());
         var payload = payload(idRef, nonce, exp);
         var sig = sign(payload);
         return new TokenPayload(type, idRef, nonce, exp.toEpochSecond(), sig);
+    }
+
+    private Duration getQrTtl() {
+        return Duration.ofSeconds(qrTtlSeconds);
     }
 
     public StampToken validateAndConsume(TokenPayload p) {
