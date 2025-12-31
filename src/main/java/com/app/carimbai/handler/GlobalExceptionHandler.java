@@ -1,5 +1,6 @@
 package com.app.carimbai.handler;
 
+import com.app.carimbai.execption.DuplicateIdempotencyKeyException;
 import com.app.carimbai.execption.TooManyStampsException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -52,5 +53,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<?> optimistic(ObjectOptimisticLockingFailureException ex) {
         return ResponseEntity.status(409).body(Map.of("error","CONFLICT","message","Concurrent update on Card"));
+    }
+
+    @ExceptionHandler(DuplicateIdempotencyKeyException.class)
+    public ResponseEntity<?> duplicateIdem(DuplicateIdempotencyKeyException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "IDEMPOTENCY_CONFLICT", "message", ex.getMessage()));
     }
 }

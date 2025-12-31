@@ -84,6 +84,10 @@ public class StampsService {
         Card card = cardRepo.findById(customerQrPayload.cardId())
                 .orElseThrow(() -> new IllegalArgumentException("Card not found: " + customerQrPayload.cardId()));
 
+        if (!card.getProgram().getMerchant().getId().equals(staffUser.getMerchant().getId())) {
+            throw new IllegalArgumentException("Card does not belong to staff merchant");
+        }
+
         // incrementa contagem
         card.setStampsCount(card.getStampsCount() + 1);
         card = cardRepo.save(card);

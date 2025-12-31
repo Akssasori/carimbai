@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,6 +21,7 @@ public class AdminController {
 
     private final StaffService staffService;
 
+    @PreAuthorize("hasAuthority('ADMIN')")
     @Operation(summary = "Set staff user PIN")
     @PostMapping("/staff-users/{id}/pin")
     public ResponseEntity<?> setStaffPin(@PathVariable Long id,

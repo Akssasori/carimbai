@@ -28,7 +28,7 @@ public class CustomerController {
 
     @Operation( summary = "Create a new customer",
             description = "Creates a new customer with the provided details.")
-    @PostMapping("/customers")
+    @PostMapping
     public ResponseEntity<CreateCustomerResponse> createCustomer(@Valid @RequestBody CreateCustomerRequest request) {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(customerMapper

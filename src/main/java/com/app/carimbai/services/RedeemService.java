@@ -60,6 +60,10 @@ public class RedeemService {
         Card card = cardRepo.findById(redeemRequest.cardId())
                 .orElseThrow(() -> new IllegalArgumentException("Card not found: " + redeemRequest.cardId()));
 
+        if (!card.getProgram().getMerchant().getId().equals(staffUser.getMerchant().getId())) {
+            throw new IllegalArgumentException("Card does not belong to customer");
+        }
+
         var program = card.getProgram();
         int stampsNeeded = program.getRuleTotalStamps() != null
                 ? program.getRuleTotalStamps()
