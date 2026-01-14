@@ -12,5 +12,5 @@ public interface CustomerMapper {
 
     CreateCustomerResponse customerToCreateCustomerResponse(Customer customer);
     @Mapping(target = "customerId", source = "customer.id")
-    CustomerLoginResponse customerToCustomerLoginResponse(Customer customer, boolean created);
+    CustomerLoginResponse customerToCustomerLoginResponse(Customer customer);
 }

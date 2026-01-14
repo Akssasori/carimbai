@@ -5,7 +5,6 @@ public record CustomerLoginResponse(
         String name,
         String email,
         String phone,
-        String providerId,
-        boolean created
+        String providerId
 ) {
 }
