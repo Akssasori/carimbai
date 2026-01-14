@@ -12,6 +12,11 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
 @EnableMethodSecurity // se quiser usar @PreAuthorize
@@ -32,6 +37,7 @@ public class SecurityConfig {
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
+                .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // Libera auth e docs
@@ -44,13 +50,15 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/actuator/health"
                         ).permitAll()
-                        // endpoints do cliente ainda liberados (pode fechar depois)
+
+                        // endpoints do cliente (por enquanto) liberados
                         .requestMatchers("/api/cards/**").permitAll()
                         .requestMatchers("/api/qr/**").permitAll()
+
                         // protege stamp/redeem/admin
                         .requestMatchers("/api/stamp/**", "/api/redeem/**", "/api/admin/**")
                         .authenticated()
-                        // default: negar tudo que não foi configurado
+
                         .anyRequest().denyAll()
                 )
                 .httpBasic(Customizer.withDefaults());
@@ -58,5 +66,35 @@ public class SecurityConfig {
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+
+        // 🔹 Origem do Vercel + localhost dev
+        config.setAllowedOriginPatterns(List.of(
+                "https://carimbai-app.vercel.app",
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "http://localhost:1234"
+        ));
+
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+
+        config.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "Idempotency-Key",
+                "X-Location-Id"
+        ));
+
+        config.setExposedHeaders(List.of("Location"));
+        config.setAllowCredentials(false); // você usa Bearer, não cookie
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 }
