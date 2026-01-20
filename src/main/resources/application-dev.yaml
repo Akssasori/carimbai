@@ -1,3 +1,5 @@
+server:
+  port: 1234
 spring:
   flyway:
     enabled: true
@@ -5,9 +7,9 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: true
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: jdbc:postgresql://localhost:5434/carimbai
+    username: postgres
+    password: postgres
     driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
   jpa:
     hibernate:
@@ -17,3 +19,20 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+
+carimbai:
+  hmac-secret: ${CARIMBAI_HMAC_SECRET:dev-secret-change-me}
+  stamps-needed: 10
+  stamps-default-needed: 10
+  rate-limit:
+    seconds: 120
+  jwt:
+    secret: ${CARIMBAI_JWT_SECRET:h9V$3uP!Qk2zA7mF@0sYwE4#RbT8nLjC}
+    expiration-seconds: 28800
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: false
+  swagger-ui:
+    path: /
+    enabled: false

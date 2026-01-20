@@ -19,6 +19,13 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /
+    enabled: true
 
 carimbai:
   hmac-secret: ${CARIMBAI_HMAC_SECRET:dev-secret-change-me}

@@ -19,7 +19,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 @Configuration
-@EnableMethodSecurity // se quiser usar @PreAuthorize
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtService jwtService;
@@ -48,7 +48,10 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
-                                "/actuator/health"
+                                "/swagger-resources/**",  // ⬅️ Adicione
+                                "/webjars/**",            // ⬅️ Adicione
+                                "/actuator/health",
+                                "/error" // ⬅️ Adicione isso
                         ).permitAll()
 
                         // endpoints do cliente (por enquanto) liberados
@@ -61,9 +64,9 @@ public class SecurityConfig {
 
                         .anyRequest().denyAll()
                 )
-                .httpBasic(Customizer.withDefaults());
-
-        http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                // ⬅️ REMOVA o httpBasic se você só usa JWT
+                // .httpBasic(Customizer.withDefaults())
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -72,7 +75,6 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // 🔹 Origem do Vercel + localhost dev
         config.setAllowedOriginPatterns(List.of(
                 "https://carimbai-app.vercel.app",
                 "http://localhost:5173",
@@ -91,7 +93,7 @@ public class SecurityConfig {
         ));
 
         config.setExposedHeaders(List.of("Location"));
-        config.setAllowCredentials(false); // você usa Bearer, não cookie
+        config.setAllowCredentials(false);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
