@@ -4,13 +4,14 @@ import com.app.carimbai.models.core.StaffUser;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.time.Instant;
 import java.util.Date;
@@ -30,7 +31,7 @@ public class JwtService {
 
     @PostConstruct
     public void init() {
-        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes());
+        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
     public String generateToken(StaffUser user) {
@@ -38,44 +39,44 @@ public class JwtService {
         Instant exp = now.plusSeconds(expirationSeconds);
 
         return Jwts.builder()
-                .setSubject(user.getId().toString()) // sub = staffId
-                .setIssuedAt(Date.from(now))
-                .setExpiration(Date.from(exp))
-                .addClaims(Map.of(
+                .subject(user.getId().toString()) // sub = staffId
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(exp))
+                .claims(Map.of(
                         "role", user.getRole().name(),
                         "merchantId", user.getMerchant().getId(),
                         "email", user.getEmail()
                 ))
-                .signWith(signingKey, SignatureAlgorithm.HS256)
+                .signWith(signingKey)
                 .compact();
     }
 
     public Jws<Claims> parseToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(signingKey)
+        return Jwts.parser()
+                .verifyWith((SecretKey) signingKey)
                 .build()
-                .parseClaimsJws(token);
+                .parseSignedClaims(token);
     }
 
     public Long extractStaffId(String token) {
-        Claims claims = parseToken(token).getBody();
+        Claims claims = parseToken(token).getPayload();
         return Long.parseLong(claims.getSubject());
     }
 
     public String extractRole(String token) {
-        Claims claims = parseToken(token).getBody();
+        Claims claims = parseToken(token).getPayload();
         return claims.get("role", String.class);
     }
 
     public Long extractMerchantId(String token) {
-        Claims claims = parseToken(token).getBody();
+        Claims claims = parseToken(token).getPayload();
         Integer asInt = claims.get("merchantId", Integer.class);
         if (asInt != null) return asInt.longValue();
         return claims.get("merchantId", Long.class);
     }
 
     public boolean isExpired(String token) {
-        Date exp = parseToken(token).getBody().getExpiration();
+        Date exp = parseToken(token).getPayload().getExpiration();
         return exp.before(new Date());
     }
 
