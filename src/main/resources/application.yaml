@@ -6,11 +6,6 @@ spring:
           enabled: ALWAYS
   application:
       name: carimbai
-springdoc:
-  api-docs:
-    path: /api-docs
-  swagger-ui:
-    path: /
 carimbai:
   hmac-secret: ${CARIMBAI_HMAC_SECRET}
   stamps-needed: 10
