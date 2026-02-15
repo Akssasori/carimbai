@@ -1,0 +1,49 @@
+name: Deploy Carimbai
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21' # O Maven vai buildar com 21, e sua VPS roda com 25 (sem problemas)
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      - name: Rename JAR to match Service
+        run: mv target/carimbai-0.0.1-SNAPSHOT.jar target/app.jar
+
+      - name: Copy JAR to VPS
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "target/app.jar"
+          target: "/opt/app"
+          strip_components: 1
+
+      - name: Restart Service via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Move o app.jar para o nome final esperado pelo .service
+            mv /opt/app/app.jar /opt/app/carimbai-0.0.1-SNAPSHOT.jar
+            # Reinicia o serviço
+            sudo systemctl restart carimbai.service
