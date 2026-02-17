@@ -26,7 +26,11 @@ public class StaffService {
         var user = staffUserRepository.findById(cashierId)
                 .orElseThrow(() -> new IllegalArgumentException("Cashier not found"));
 
-        if (user.getRole() != StaffRole.CASHIER || Boolean.FALSE.equals(user.getActive()))
+        if (!(user.getRole() == StaffRole.CASHIER || user.getRole() == StaffRole.ADMIN)) {
+            throw new IllegalArgumentException("Cashier not active/authorized");
+        }
+
+        if (Boolean.FALSE.equals(user.getActive()))
             throw new IllegalArgumentException("Cashier not active/authorized");
 
         var pinHash = user.getPinHash();
