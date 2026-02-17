@@ -2,6 +2,7 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.RedeemRequest;
 import com.app.carimbai.dtos.RedeemResponse;
+import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.models.core.Location;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.fidelity.Card;
@@ -61,13 +62,17 @@ public class RedeemService {
                 .orElseThrow(() -> new IllegalArgumentException("Card not found: " + redeemRequest.cardId()));
 
         if (!card.getProgram().getMerchant().getId().equals(staffUser.getMerchant().getId())) {
-            throw new IllegalArgumentException("Card does not belong to customer");
+            throw new IllegalArgumentException("Card does not belong to staff merchant");
         }
 
         var program = card.getProgram();
         int stampsNeeded = program.getRuleTotalStamps() != null
                 ? program.getRuleTotalStamps()
                 : defaultStampsNeeded;
+
+        if (card.getStatus() != CardStatus.READY_TO_REDEEM) {
+            throw new IllegalStateException("CARD_NOT_READY_TO_REDEEM");
+        }
 
         if (card.getStampsCount() < stampsNeeded) {
             throw new IllegalStateException(
@@ -81,6 +86,7 @@ public class RedeemService {
         reward = rewardRepo.save(reward);
 
         card.setStampsCount(0);
+        card.setStatus(CardStatus.ACTIVE);
         cardRepo.save(card);
 
         return new RedeemResponse(true,

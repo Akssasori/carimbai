@@ -5,7 +5,9 @@ import com.app.carimbai.dtos.RequestMeta;
 import com.app.carimbai.dtos.StampRequest;
 import com.app.carimbai.dtos.StampResponse;
 import com.app.carimbai.dtos.TokenPayload;
+import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.enums.StampSource;
+import com.app.carimbai.execption.CardReadyToRedeemException;
 import com.app.carimbai.execption.TooManyStampsException;
 import com.app.carimbai.models.StampToken;
 import com.app.carimbai.models.core.StaffUser;
@@ -63,11 +65,26 @@ public class StampsService {
             requestMeta =  new RequestMeta(userAgent, locationId);
         }
 
-        // idempotência por chamada
-        idempotencyService.acquireOrThrow(idemKey);
+        if (idemKey != null && !idemKey.isBlank()) {
+            // idempotência por chamada
+            idempotencyService.acquireOrThrow(idemKey);
+        }
 
         // rate-limit por cartão
         checkRateLimit(customerQrPayload.cardId());
+
+        // carrega card
+        Card card = cardRepo.findById(customerQrPayload.cardId())
+                .orElseThrow(() -> new IllegalArgumentException("Card not found: " + customerQrPayload.cardId()));
+
+        if (!card.getProgram().getMerchant().getId().equals(staffUser.getMerchant().getId())) {
+            throw new IllegalArgumentException("Card does not belong to staff merchant");
+        }
+
+        // ── Regra: card já está pronto para resgate → bloqueia novo carimbo ──
+        if (CardStatus.READY_TO_REDEEM.equals(card.getStatus())) {
+            throw new CardReadyToRedeemException("Card " + card.getId() + " is ready to redeem.");
+        }
 
         // valida token + persiste uso → precisamos do tokenId
         var tokenPayload = new TokenPayload(
@@ -80,16 +97,27 @@ public class StampsService {
 
         StampToken savedToken = tokenService.validateAndConsume(tokenPayload);
 
-        // carrega card
-        Card card = cardRepo.findById(customerQrPayload.cardId())
-                .orElseThrow(() -> new IllegalArgumentException("Card not found: " + customerQrPayload.cardId()));
+        var program = card.getProgram();
+        int needed = program.getRuleTotalStamps() != null
+                ? program.getRuleTotalStamps()
+                : defaultStampsNeeded;
 
-        if (!card.getProgram().getMerchant().getId().equals(staffUser.getMerchant().getId())) {
-            throw new IllegalArgumentException("Card does not belong to staff merchant");
+        // ── Regra: nunca passa de `needed` ──
+        int currentStamps = card.getStampsCount();
+        if (currentStamps >= needed) {
+            throw new CardReadyToRedeemException("Card " + card.getId() + " is ready to redeem.");
         }
 
-        // incrementa contagem
-        card.setStampsCount(card.getStampsCount() + 1);
+        // incrementa — nunca ultrapassa `needed`
+        int newStampsCount = Math.min(currentStamps + 1, needed);
+        card.setStampsCount(newStampsCount);
+
+        // ── Regra: ao bater `needed` → seta status e trava ──
+        boolean rewardIssued = newStampsCount >= needed;
+        if (rewardIssued) {
+            card.setStatus(CardStatus.READY_TO_REDEEM);
+        }
+
         card = cardRepo.save(card);
 
         // monta Stamp
@@ -105,7 +133,6 @@ public class StampsService {
                 var locRef = locationRepo.findById(requestMeta.locationId())
                         .orElseThrow(() -> new IllegalArgumentException("Location not found"));
 
-                // valida se location é do mesmo merchant do staff
                 if (!locRef.getMerchant().getId().equals(staffUser.getMerchant().getId())) {
                     throw new IllegalArgumentException("Location does not belong to staff merchant");
                 }
@@ -116,17 +143,10 @@ public class StampsService {
 
         stampRepo.save(stamp);
 
-        var program = card.getProgram();
-        int stampsNeeded = program.getRuleTotalStamps() != null
-                ? program.getRuleTotalStamps()
-                : defaultStampsNeeded;
-
-        boolean rewardIssued = card.getStampsCount() >= stampsNeeded;
-
         return new StampResponse(true,
                 card.getId(),
                 card.getStampsCount(),
-                stampsNeeded,
+                needed,
                 rewardIssued
         );
     }
