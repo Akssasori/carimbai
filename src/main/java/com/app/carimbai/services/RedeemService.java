@@ -2,6 +2,7 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.RedeemRequest;
 import com.app.carimbai.dtos.RedeemResponse;
+import com.app.carimbai.dtos.TokenPayload;
 import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.models.core.Location;
 import com.app.carimbai.models.core.StaffUser;
@@ -14,11 +15,15 @@ import com.app.carimbai.utils.SecurityUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class RedeemService {
 
@@ -27,6 +32,7 @@ public class RedeemService {
     private final LocationRepository locationRepo;
     private final StaffService staffService;
     private final ObjectMapper objectMapper;
+    private final StampTokenService stampTokenService;
 
     @Value("${carimbai.stamps-needed:10}")
     private Integer defaultStampsNeeded;
@@ -56,6 +62,26 @@ public class RedeemService {
                 // valida PIN do próprio staff logado
                 staffService.validateCashierPin(staffUser.getId(), cashierPin);
             }
+        }
+
+        Long cardId = (redeemRequest.redeemQr() != null) ? redeemRequest.redeemQr().cardId() : redeemRequest.cardId();
+        if (cardId == null) throw new IllegalArgumentException("cardId is required");
+
+
+        // ✅ Se veio QR de resgate, validar + anti-replay
+        if (redeemRequest.redeemQr() != null) {
+            log.info("Redeem type REDEEM");
+            var p = redeemRequest.redeemQr();
+
+            var tokenPayload = new TokenPayload(
+                    "REDEEM_QR",
+                    p.cardId(),
+                    UUID.fromString(p.nonce()),
+                    p.exp(),
+                    p.sig()
+            );
+
+            stampTokenService.validateAndConsume(tokenPayload); // reaproveita e grava ops.stamp_tokens
         }
 
         Card card = cardRepo.findById(redeemRequest.cardId())

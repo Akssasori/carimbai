@@ -55,16 +55,32 @@ public class StampTokenService {
 
     public TokenPayload issueStore(Long locationId) { return issue("STORE_QR", locationId); }
 
+    //emitir
     private TokenPayload issue(String type, Long idRef) {
+        return issueWithTtl(type, idRef, getQrTtl());
+    }
+
+    private TokenPayload issueWithTtl(String type, Long idRef, Duration ttl) {
         var nonce = UUID.randomUUID();
-        var exp = OffsetDateTime.now().plus(getQrTtl());
-        var payload = payload(idRef, nonce, exp);
+        var exp = OffsetDateTime.now().plus(ttl);
+        var payload = payload(type,idRef, nonce, exp);
         var sig = sign(payload);
         return new TokenPayload(type, idRef, nonce, exp.toEpochSecond(), sig);
     }
 
     private Duration getQrTtl() {
         return Duration.ofSeconds(qrTtlSeconds);
+    }
+
+    public QrTokenResponse generateRedeemQr(Long cardId) {
+        TokenPayload redeemQr = issueWithTtl("REDEEM_QR", cardId, Duration.ofSeconds(qrTtlSeconds));
+        return new QrTokenResponse(
+                redeemQr.type(),
+                redeemQr.idRef(),   // cardId
+                redeemQr.nonce(),
+                redeemQr.exp(),
+                redeemQr.sig()
+        );
     }
 
     public StampToken validateAndConsume(TokenPayload p) {
@@ -77,7 +93,7 @@ public class StampTokenService {
         if (OffsetDateTime.now().isAfter(expTime)) throw new IllegalArgumentException("Token expired");
 
         // assinatura
-        var expected = sign(payload(p.idRef(), p.nonce(), expTime));
+        var expected = sign(payload(p.type(),p.idRef(), p.nonce(), expTime));
         if (!constantTimeEquals(expected, p.sig())) throw new IllegalArgumentException("Invalid signature");
 
         // anti-replay
@@ -94,8 +110,8 @@ public class StampTokenService {
         return stampTokenRepository.save(entity);
     }
 
-    private String payload(Long idRef, UUID nonce, OffsetDateTime exp) {
-        return idRef + "|" + nonce + "|" + exp.toEpochSecond();
+    private String payload(String type, Long idRef, UUID nonce, OffsetDateTime exp) {
+        return type + "|" + idRef + "|" + nonce + "|" + exp.toEpochSecond();
     }
 
     private String sign(String payload) {

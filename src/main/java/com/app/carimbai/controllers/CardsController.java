@@ -1,9 +1,9 @@
 package com.app.carimbai.controllers;
 
 import com.app.carimbai.dtos.CardListResponse;
-import com.app.carimbai.dtos.QrTokenResponse;
 import com.app.carimbai.dtos.admin.AdminCardResponse;
 import com.app.carimbai.dtos.admin.CreateCardRequest;
+import com.app.carimbai.dtos.redeem.RedeemQrResponse;
 import com.app.carimbai.mappers.CardMapper;
 import com.app.carimbai.services.CardService;
 import com.app.carimbai.services.StampTokenService;
@@ -44,4 +44,10 @@ public class CardsController {
                 .cardToAdminCardResponse(cardService
                         .getOrCreateCard(request.programId(), request.customerId())));
     }
+
+    @GetMapping("/{cardId}/redeem-qr")
+    public RedeemQrResponse redeemQr(@PathVariable Long cardId) {
+        return cardService.generateRedeemQr(cardId);
+    }
+
 }
