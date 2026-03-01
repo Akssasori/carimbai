@@ -2,6 +2,9 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.CardItemDto;
 import com.app.carimbai.dtos.CardListResponse;
+import com.app.carimbai.dtos.QrTokenResponse;
+import com.app.carimbai.dtos.redeem.RedeemQrResponse;
+import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.models.fidelity.Customer;
 import com.app.carimbai.models.fidelity.Program;
@@ -21,6 +24,7 @@ public class CardService {
     private final CardRepository cardRepository;
     private final ProgramService programService;
     private final CustomerService customerService;
+    private final StampTokenService stampTokenService;
 
     @Value("${carimbai.stamps-needed:10}")
     private Integer defaultStampsNeeded;
@@ -111,5 +115,22 @@ public class CardService {
         card.setStampsCount(0);
         // status e createdAt já tem default na entidade
         cardRepository.save(card);
+    }
+
+    public RedeemQrResponse generateRedeemQr(Long cardId) {
+        Card card = cardRepository.findById(cardId)
+                .orElseThrow(() -> new IllegalArgumentException("Card not found: " + cardId));
+        if (card.getStatus() != CardStatus.READY_TO_REDEEM) {
+            throw new IllegalArgumentException("Card status is not READY_TO_REDEEM");
+        }
+
+        QrTokenResponse qrTokenResponse = stampTokenService.generateRedeemQr(cardId);
+
+        return new RedeemQrResponse(qrTokenResponse.type(),
+                cardId,
+                qrTokenResponse.nonce(),
+                qrTokenResponse.exp(),
+                qrTokenResponse.sig());
+
     }
 }
