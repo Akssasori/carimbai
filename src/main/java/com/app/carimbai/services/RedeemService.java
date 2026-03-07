@@ -67,6 +67,10 @@ public class RedeemService {
         Long cardId = (redeemRequest.redeemQr() != null) ? redeemRequest.redeemQr().cardId() : redeemRequest.cardId();
         if (cardId == null) throw new IllegalArgumentException("cardId is required");
 
+        if (redeemRequest.redeemQr() != null && redeemRequest.cardId() != null
+                && !redeemRequest.cardId().equals(redeemRequest.redeemQr().cardId())) {
+            throw new IllegalArgumentException("cardId mismatch between request and QR payload");
+        }
 
         // ✅ Se veio QR de resgate, validar + anti-replay
         if (redeemRequest.redeemQr() != null) {
@@ -84,8 +88,8 @@ public class RedeemService {
             stampTokenService.validateAndConsume(tokenPayload); // reaproveita e grava ops.stamp_tokens
         }
 
-        Card card = cardRepo.findById(redeemRequest.cardId())
-                .orElseThrow(() -> new IllegalArgumentException("Card not found: " + redeemRequest.cardId()));
+        Card card = cardRepo.findById(cardId)
+                .orElseThrow(() -> new IllegalArgumentException("Card not found: " + cardId));
 
         if (!card.getProgram().getMerchant().getId().equals(staffUser.getMerchant().getId())) {
             throw new IllegalArgumentException("Card does not belong to staff merchant");
