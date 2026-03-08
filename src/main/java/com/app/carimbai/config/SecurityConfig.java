@@ -87,7 +87,8 @@ public class SecurityConfig {
                 "Content-Type",
                 "Accept",
                 "Idempotency-Key",
-                "X-Location-Id"
+                "X-Location-Id",
+                "X-Cashier-Pin"
         ));
 
         config.setExposedHeaders(List.of("Location"));
