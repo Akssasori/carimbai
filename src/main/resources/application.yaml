@@ -17,3 +17,7 @@ carimbai:
   jwt:
     secret: ${CARIMBAI_JWT_SECRET}
     expiration-seconds: 28800
+  vapid:
+    public-key: ${VAPID_PUBLIC_KEY}
+    private-key: ${VAPID_PRIVATE_KEY}
+    subject: mailto:contato@carimbai.com

@@ -33,6 +33,7 @@ public class RedeemService {
     private final StaffService staffService;
     private final ObjectMapper objectMapper;
     private final StampTokenService stampTokenService;
+    private final PushNotificationService pushNotificationService;
 
     @Value("${carimbai.stamps-needed:10}")
     private Integer defaultStampsNeeded;
@@ -118,6 +119,12 @@ public class RedeemService {
         card.setStampsCount(0);
         card.setStatus(CardStatus.ACTIVE);
         cardRepo.save(card);
+
+        pushNotificationService.sendToCustomer(
+                card.getCustomer().getId(),
+                "Recompensa resgatada!",
+                "Seu resgate foi concluído com sucesso. Aproveite!"
+        );
 
         return new RedeemResponse(true,
                 reward.getId(),

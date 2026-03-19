@@ -19,13 +19,6 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
-springdoc:
-  api-docs:
-    path: /api-docs
-    enabled: true
-  swagger-ui:
-    path: /
-    enabled: true
 
 carimbai:
   hmac-secret: ${CARIMBAI_HMAC_SECRET:dev-secret-change-me}
@@ -36,3 +29,14 @@ carimbai:
   jwt:
     secret: ${CARIMBAI_JWT_SECRET:h9V$3uP!Qk2zA7mF@0sYwE4#RbT8nLjC}
     expiration-seconds: 28800
+  vapid:
+    public-key: ${VAPID_PUBLIC_KEY:BDm2nt0J3_5Gp3VaOmBIKzSkKBnFyUaq4cxuaXBDCFsXmBBP4YoCIGBdU_S7rr0FQfnKZiYTx0-AI6IBv7JzrIM}
+    private-key: ${VAPID_PRIVATE_KEY:3M1V_UxhYGpLzl5GQxnOWA_U4nHpS1bDwXTq3iqVmQ0}
+    subject: mailto:dev@carimbai.local
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /
+    enabled: true

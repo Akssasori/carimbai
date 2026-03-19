@@ -1,9 +1,9 @@
 spring:
   flyway:
-    enabled: true
+    enabled: false
     locations: classpath:db.migration
-    baseline-on-migrate: true
-    validate-on-migrate: true
+    baseline-on-migrate: false
+    validate-on-migrate: false
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -27,6 +27,10 @@ carimbai:
   jwt:
     secret: ${CARIMBAI_JWT_SECRET:h9V$3uP!Qk2zA7mF@0sYwE4#RbT8nLjC}
     expiration-seconds: 28800
+  vapid:
+    public-key: ${VAPID_PUBLIC_KEY}
+    private-key: ${VAPID_PRIVATE_KEY}
+    subject: ${VAPID_SUBJECT:mailto:contato@carimbai.com}
 springdoc:
   api-docs:
     path: /api-docs

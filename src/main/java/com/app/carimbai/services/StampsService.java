@@ -38,6 +38,7 @@ public class StampsService {
     private final LocationRepository locationRepo;
     private final IdempotencyService idempotencyService;
     private final ObjectMapper objectMapper;
+    private final PushNotificationService pushNotificationService;
 
     @Value("${carimbai.rate-limit.seconds:120}")
     private Integer rateWindowSeconds;
@@ -142,6 +143,14 @@ public class StampsService {
         }
 
         stampRepo.save(stamp);
+
+        if (newStampsCount == needed - 1) {
+            pushNotificationService.sendToCustomer(
+                    card.getCustomer().getId(),
+                    "Quase lá!",
+                    "Falta apenas 1 carimbo para sua recompensa!"
+            );
+        }
 
         return new StampResponse(true,
                 card.getId(),

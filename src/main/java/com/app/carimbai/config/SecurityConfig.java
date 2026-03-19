@@ -55,6 +55,7 @@ public class SecurityConfig {
                         // endpoints do cliente (por enquanto) liberados
                         .requestMatchers("/api/cards/**").permitAll()
                         .requestMatchers("/api/qr/**").permitAll()
+                        .requestMatchers("/api/notifications/**").permitAll()
 
                         // protege stamp/redeem/admin
                         .requestMatchers("/api/stamp/**", "/api/redeem/**", "/api/admin/**")
