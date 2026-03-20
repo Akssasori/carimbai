@@ -94,6 +94,22 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
         </dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents.client5</groupId>
+			<artifactId>httpclient5</artifactId>
+			<!-- A versão é gerenciada pelo Spring Boot, então você não precisa colocar o <version> -->
+		</dependency>
+		<!-- Mantém compatibilidade com a biblioteca de Push (HttpClient 4) -->
+		<dependency>
+			<groupId>org.apache.httpcomponents</groupId>
+			<artifactId>httpclient</artifactId>
+			<version>4.5.14</version>
+		</dependency>
+		<dependency>
+			<groupId>org.bitbucket.b_c</groupId>
+			<artifactId>jose4j</artifactId>
+			<version>0.9.6</version> <!-- Versão estável e compatível -->
+		</dependency>
 		<!-- IMPORTANTE: Flyway agora precisa do starter -->
 <!--		<dependency>-->
 <!--			<groupId>org.springframework.boot</groupId>-->
