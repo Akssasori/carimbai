@@ -1,17 +1,20 @@
 package com.app.carimbai.mappers;
 
 import com.app.carimbai.config.MapStructConfig;
-import com.app.carimbai.dtos.admin.CreateProgramResponse;
 import com.app.carimbai.dtos.admin.CreateStaffUserResponse;
+import com.app.carimbai.enums.StaffRole;
 import com.app.carimbai.models.core.StaffUser;
-import com.app.carimbai.models.fidelity.Program;
 import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 
 @Mapper(config = MapStructConfig.class)
 public interface StaffMapper {
 
-    @Mapping(target = "merchantId", source = "merchant.id")
-    @Mapping(target = "password", source = "passwordHash")
-    CreateStaffUserResponse staffUserToCreateStaffUserResponse(StaffUser staffUser);
+    default CreateStaffUserResponse toCreateStaffUserResponse(StaffUser user, Long merchantId, StaffRole role) {
+        return new CreateStaffUserResponse(
+                user.getId(),
+                user.getEmail(),
+                merchantId,
+                role
+        );
+    }
 }

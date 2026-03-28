@@ -1,6 +1,7 @@
 package com.app.carimbai.services;
 
 import com.app.carimbai.models.core.StaffUser;
+import com.app.carimbai.models.core.StaffUserMerchant;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
@@ -34,17 +35,17 @@ public class JwtService {
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String generateToken(StaffUser user) {
+    public String generateToken(StaffUser user, StaffUserMerchant activeLink) {
         Instant now = Instant.now();
         Instant exp = now.plusSeconds(expirationSeconds);
 
         return Jwts.builder()
-                .subject(user.getId().toString()) // sub = staffId
+                .subject(user.getId().toString())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
                 .claims(Map.of(
-                        "role", user.getRole().name(),
-                        "merchantId", user.getMerchant().getId(),
+                        "role", activeLink.getRole().name(),
+                        "merchantId", activeLink.getMerchant().getId(),
                         "email", user.getEmail()
                 ))
                 .signWith(signingKey)

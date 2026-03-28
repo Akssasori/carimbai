@@ -3,6 +3,7 @@ package com.app.carimbai.controllers;
 import com.app.carimbai.dtos.admin.CreateStaffUserRequest;
 import com.app.carimbai.dtos.admin.CreateStaffUserResponse;
 import com.app.carimbai.mappers.StaffMapper;
+import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.services.StaffService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -29,9 +30,9 @@ public class StaffUserController {
     @PostMapping
     public ResponseEntity<CreateStaffUserResponse> createStaffUser(@Valid @RequestBody CreateStaffUserRequest request) {
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(staffMapper
-                .staffUserToCreateStaffUserResponse(staffService
-                        .createStaffUser(request)));
+        StaffUser created = staffService.createStaffUser(request);
 
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(staffMapper.toCreateStaffUserResponse(created, request.merchantId(), request.role()));
     }
 }
