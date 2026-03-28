@@ -1,5 +1,6 @@
 package com.app.carimbai.services;
 
+import com.app.carimbai.dtos.ProgramItemDto;
 import com.app.carimbai.dtos.admin.CreateProgramRequest;
 import com.app.carimbai.dtos.admin.UpdateProgramRequest;
 import com.app.carimbai.models.core.Merchant;
@@ -76,5 +77,12 @@ public class ProgramService {
     public Program findById(Long programId) {
         return programRepository.findById(programId)
                 .orElseThrow(() -> new IllegalArgumentException("Program not found with id: " + programId));
+    }
+
+    public List<Program> listPrograms(Long merchantId, boolean activeOnly) {
+
+        return  activeOnly
+                ? findActiveByMerchantId(merchantId)
+                : findByMerchantId(merchantId);
     }
 }

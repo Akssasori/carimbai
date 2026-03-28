@@ -96,14 +96,7 @@ public class MerchantController {
     public ResponseEntity<List<ProgramItemDto>> listPrograms(@PathVariable Long merchantId,
                                                              @RequestParam(defaultValue = "true") boolean activeOnly) {
 
-        var programs = activeOnly
-                ? programService.findActiveByMerchantId(merchantId)
-                : programService.findByMerchantId(merchantId);
-
-        List<ProgramItemDto> dtos = programs.stream()
-                .map(programMapper::programToProgramItemDto)
-                .toList();
-
-        return ResponseEntity.ok(dtos);
+        return ResponseEntity.ok(programService.listPrograms(merchantId, activeOnly)
+                .stream().map(programMapper::programToProgramItemDto).toList());
     }
 }
