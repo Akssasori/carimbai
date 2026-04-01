@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -40,30 +41,32 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Libera auth e docs
                         .requestMatchers(
-                                "/api/auth/**",
+                                "/api/auth/login",
                                 "/api/customers/login-or-register",
                                 "/api/staff/login",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/actuator/health",
-                                "/error" // ⬅️ Adicione isso
+                                "/error"
                         ).permitAll()
 
-                        // endpoints do cliente (por enquanto) liberados
                         .requestMatchers("/api/cards/**").permitAll()
                         .requestMatchers("/api/qr/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/merchants/*/programs").permitAll()
 
-                        // protege stamp/redeem/admin
-                        .requestMatchers("/api/stamp/**", "/api/redeem/**", "/api/admin/**")
-                        .authenticated()
+                        .requestMatchers(
+                                "/api/auth/switch-merchant",
+                                "/api/stamp/**",
+                                "/api/redeem/**",
+                                "/api/admin/**",
+                                "/api/merchants/**",
+                                "/api/staff-users/**"
+                        ).authenticated()
 
                         .anyRequest().denyAll()
                 )
-                // ⬅️ REMOVA o httpBasic se você só usa JWT
-                // .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -88,7 +91,8 @@ public class SecurityConfig {
                 "Accept",
                 "Idempotency-Key",
                 "X-Location-Id",
-                "X-Cashier-Pin"
+                "X-Cashier-Pin",
+                "X-Merchant-Id"
         ));
 
         config.setExposedHeaders(List.of("Location"));

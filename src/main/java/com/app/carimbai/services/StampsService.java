@@ -57,8 +57,9 @@ public class StampsService {
         // payload do QR
         var customerQrPayload = objectMapper.convertValue(stampRequest.payload(), CustomerQrPayload.class);
 
-        // staff logado (CASHIER ou ADMIN)
+        // staff logado (CASHIER ou ADMIN) + merchant ativo do token
         StaffUser staffUser = SecurityUtils.getRequiredStaffUser();
+        Long activeMerchantId = SecurityUtils.getActiveMerchantId();
 
         RequestMeta requestMeta = null;
         if (Objects.nonNull(userAgent) && Objects.nonNull(locationId)) {
@@ -77,7 +78,7 @@ public class StampsService {
         Card card = cardRepo.findById(customerQrPayload.cardId())
                 .orElseThrow(() -> new IllegalArgumentException("Card not found: " + customerQrPayload.cardId()));
 
-        if (!card.getProgram().getMerchant().getId().equals(staffUser.getMerchant().getId())) {
+        if (!card.getProgram().getMerchant().getId().equals(activeMerchantId)) {
             throw new IllegalArgumentException("Card does not belong to staff merchant");
         }
 
@@ -133,7 +134,7 @@ public class StampsService {
                 var locRef = locationRepo.findById(requestMeta.locationId())
                         .orElseThrow(() -> new IllegalArgumentException("Location not found"));
 
-                if (!locRef.getMerchant().getId().equals(staffUser.getMerchant().getId())) {
+                if (!locRef.getMerchant().getId().equals(activeMerchantId)) {
                     throw new IllegalArgumentException("Location does not belong to staff merchant");
                 }
 

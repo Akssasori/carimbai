@@ -1,14 +1,21 @@
 package com.app.carimbai.dtos.admin;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import java.time.OffsetDateTime;
 
 public record CreateProgramResponse(
-
-        @NotNull Long merchantId,
-        @NotBlank String name,
+        Long id,
+        Long merchantId,
+        String name,
         Integer ruleTotalStamps,
         String rewardName,
-        Integer expirationDays
+        Integer expirationDays,
+        String description,
+        Boolean active,
+        OffsetDateTime startAt,
+        OffsetDateTime endAt,
+        String category,
+        String terms,
+        String imageUrl,
+        Integer sortOrder
 ) {
 }

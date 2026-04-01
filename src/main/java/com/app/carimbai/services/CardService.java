@@ -6,8 +6,6 @@ import com.app.carimbai.dtos.QrTokenResponse;
 import com.app.carimbai.dtos.redeem.RedeemQrResponse;
 import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.models.fidelity.Card;
-import com.app.carimbai.models.fidelity.Customer;
-import com.app.carimbai.models.fidelity.Program;
 import com.app.carimbai.repositories.CardRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,8 +26,6 @@ public class CardService {
 
     @Value("${carimbai.stamps-needed:10}")
     private Integer defaultStampsNeeded;
-
-    public static final long DEFAULT_PROGRAM_ID = 1L;
 
 
     @Transactional(readOnly = true)
@@ -88,33 +84,6 @@ public class CardService {
 
     public Card save(Card card) {
         return cardRepository.save(card);
-    }
-
-    public void ensureDefaultCard(Customer customer) {
-
-        Program program = programService.findById(DEFAULT_PROGRAM_ID);
-
-        if (program == null) {
-            // não tem programa cadastrado ainda, não faz nada
-            return;
-        }
-
-        // já existe cartão para esse programa + cliente?
-        boolean exists = cardRepository
-                .findByProgramIdAndCustomerId(program.getId(), customer.getId())
-                .isPresent();
-
-        if (exists) {
-            return;
-        }
-
-        // se não, cria um card zerado
-        Card card = new Card();
-        card.setProgram(program);
-        card.setCustomer(customer);
-        card.setStampsCount(0);
-        // status e createdAt já tem default na entidade
-        cardRepository.save(card);
     }
 
     public RedeemQrResponse generateRedeemQr(Long cardId) {

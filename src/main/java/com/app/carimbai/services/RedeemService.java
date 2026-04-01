@@ -41,14 +41,14 @@ public class RedeemService {
     public RedeemResponse redeem(RedeemRequest redeemRequest, String cashierPin) {
 
         StaffUser staffUser = SecurityUtils.getRequiredStaffUser();
+        Long activeMerchantId = SecurityUtils.getActiveMerchantId();
 
         Location location = null;
         if (redeemRequest.locationId() != null) {
             location = locationRepo.findById(redeemRequest.locationId())
                     .orElseThrow(() -> new IllegalArgumentException("Location not found: " + redeemRequest.locationId()));
 
-            // garante que location pertence ao merchant do staff
-            if (!location.getMerchant().getId().equals(staffUser.getMerchant().getId())) {
+            if (!location.getMerchant().getId().equals(activeMerchantId)) {
                 throw new IllegalArgumentException("Location does not belong to staff merchant");
             }
 
@@ -91,7 +91,7 @@ public class RedeemService {
         Card card = cardRepo.findById(cardId)
                 .orElseThrow(() -> new IllegalArgumentException("Card not found: " + cardId));
 
-        if (!card.getProgram().getMerchant().getId().equals(staffUser.getMerchant().getId())) {
+        if (!card.getProgram().getMerchant().getId().equals(activeMerchantId)) {
             throw new IllegalArgumentException("Card does not belong to staff merchant");
         }
 

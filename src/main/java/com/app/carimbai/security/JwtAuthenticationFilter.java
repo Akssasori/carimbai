@@ -16,8 +16,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    public static final String ATTR_MERCHANT_ID = "activeMerchantId";
 
     private final JwtService jwtService;
     private final StaffUserRepository staffRepo;
@@ -42,6 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (!jwtService.isExpired(token)) {
                     Long staffId = jwtService.extractStaffId(token);
                     String role = jwtService.extractRole(token);
+                    Long merchantId = jwtService.extractMerchantId(token);
 
                     StaffUser user = staffRepo.findById(staffId)
                             .orElse(null);
@@ -49,13 +53,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     if (user != null && Boolean.TRUE.equals(user.getActive())) {
                         var authorities = List.of(new SimpleGrantedAuthority(role));
                         var auth = new UsernamePasswordAuthenticationToken(
-                                user, null, authorities
+                                user, Map.of("merchantId", merchantId, "role", role), authorities
                         );
                         SecurityContextHolder.getContext().setAuthentication(auth);
+
+                        request.setAttribute(ATTR_MERCHANT_ID, merchantId);
                     }
                 }
             } catch (JwtException | IllegalArgumentException e) {
-                // token inválido/expirado → segue sem auth
                 SecurityContextHolder.clearContext();
             }
         }

@@ -1,16 +1,14 @@
 package com.app.carimbai.dtos.admin;
 
-import jakarta.validation.constraints.NotBlank;
-
 import java.time.OffsetDateTime;
 
-public record CreateProgramRequest(
-
-        @NotBlank String name,
+public record UpdateProgramRequest(
+        String name,
         Integer ruleTotalStamps,
         String rewardName,
         Integer expirationDays,
         String description,
+        Boolean active,
         OffsetDateTime startAt,
         OffsetDateTime endAt,
         String category,
