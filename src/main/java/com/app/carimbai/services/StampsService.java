@@ -7,6 +7,7 @@ import com.app.carimbai.dtos.StampResponse;
 import com.app.carimbai.dtos.TokenPayload;
 import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.enums.StampSource;
+import com.app.carimbai.events.CardEvent;
 import com.app.carimbai.execption.CardReadyToRedeemException;
 import com.app.carimbai.execption.TooManyStampsException;
 import com.app.carimbai.models.StampToken;
@@ -21,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -38,6 +40,7 @@ public class StampsService {
     private final LocationRepository locationRepo;
     private final IdempotencyService idempotencyService;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${carimbai.rate-limit.seconds:120}")
     private Integer rateWindowSeconds;
@@ -143,6 +146,9 @@ public class StampsService {
         }
 
         stampRepo.save(stamp);
+
+        eventPublisher.publishEvent(
+                CardEvent.stampApplied(card.getId(), card.getStampsCount(), needed, card.getStatus().name()));
 
         return new StampResponse(true,
                 card.getId(),
