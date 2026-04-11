@@ -4,17 +4,21 @@ import com.app.carimbai.events.CardEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 @Component
 @Slf4j
 @RequiredArgsConstructor
+@EnableScheduling
 public class SseEmitterRegistry {
 
     private final ConcurrentHashMap<Long, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
@@ -57,6 +61,23 @@ public class SseEmitterRegistry {
             } catch (IOException e) {
                 log.debug("Failed to send SSE to cardId={}, removing emitter", cardId);
                 list.remove(emitter);
+            }
+        }
+    }
+
+    @Scheduled(fixedRate = 15_000)
+    public void heartbeat() {
+        for (Map.Entry<Long, List<SseEmitter>> entry : emitters.entrySet()) {
+            List<SseEmitter> list = entry.getValue();
+            for (SseEmitter emitter : list) {
+                try {
+                    emitter.send(SseEmitter.event().comment("heartbeat"));
+                } catch (IOException e) {
+                    list.remove(emitter);
+                    if (list.isEmpty()) {
+                        emitters.remove(entry.getKey());
+                    }
+                }
             }
         }
     }
