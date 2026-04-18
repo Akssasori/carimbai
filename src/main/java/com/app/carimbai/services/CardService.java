@@ -63,18 +63,19 @@ public class CardService {
     }
 
     @Transactional
-    public Card getOrCreateCard(Long programId, Long customerId) {
+    public CardResult getOrCreateCard(Long programId, Long customerId) {
 
         var program = programService.findById(programId);
         var customer = customerService.findById(customerId);
 
         return cardRepository.findByProgramIdAndCustomerId(program.getId(), customer.getId())
+                .map(existing -> new CardResult(existing, false))
                 .orElseGet(() -> {
                     Card c = new Card();
                     c.setProgram(program);
                     c.setCustomer(customer);
                     c.setStampsCount(0);
-                    return cardRepository.save(c);
+                    return new CardResult(cardRepository.save(c), true);
                 });
     }
 
