@@ -36,13 +36,14 @@ public class CardsController {
     }
 
     @Operation(summary = "Cria um novo cartão de fidelidade para um cliente em um programa.",
-               description = "Cria um novo cartão de fidelidade associando um cliente a um programa específico.")
+               description = "Cria um novo cartão de fidelidade associando um cliente a um programa específico. Retorna 201 se o cartão foi criado, 200 se já existia.")
     @PostMapping
     public ResponseEntity<AdminCardResponse> createOrGetCard(@Valid @RequestBody CreateCardRequest request) {
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(cardMapper
-                .cardToAdminCardResponse(cardService
-                        .getOrCreateCard(request.programId(), request.customerId())));
+        var result = cardService.getOrCreateCard(request.programId(), request.customerId());
+        return ResponseEntity
+                .status(result.created() ? HttpStatus.CREATED : HttpStatus.OK)
+                .body(cardMapper.cardToAdminCardResponse(result.card()));
     }
 
     @GetMapping("/{cardId}/redeem-qr")
