@@ -43,11 +43,9 @@ public class JwtService {
                 .subject(user.getId().toString())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
-                .claims(Map.of(
-                        "role", activeLink.getRole().name(),
-                        "merchantId", activeLink.getMerchant().getId(),
-                        "email", user.getEmail()
-                ))
+                .claim("role", activeLink.getRole().name())
+                .claim("merchantId", activeLink.getMerchant().getId())
+                .claim("email", user.getEmail())
                 .signWith(signingKey)
                 .compact();
     }
