@@ -2,6 +2,8 @@ package com.app.carimbai.handler;
 
 import com.app.carimbai.execption.CardReadyToRedeemException;
 import com.app.carimbai.execption.DuplicateIdempotencyKeyException;
+import com.app.carimbai.execption.EmailAlreadyLinkedException;
+import com.app.carimbai.execption.InvalidSocialTokenException;
 import com.app.carimbai.execption.TooManyStampsException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -76,5 +78,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(Map.of("error","CONFLICT","message",ex.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidSocialTokenException.class)
+    public ResponseEntity<?> invalidSocialToken(InvalidSocialTokenException ex) {
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", "INVALID_SOCIAL_TOKEN", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(EmailAlreadyLinkedException.class)
+    public ResponseEntity<?> emailAlreadyLinked(EmailAlreadyLinkedException ex) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "EMAIL_ALREADY_LINKED", "message", ex.getMessage()));
     }
 }
