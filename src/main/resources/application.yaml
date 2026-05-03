@@ -1,6 +1,6 @@
 spring:
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+    active: ${SPRING_PROFILES_ACTIVE:local}
   output:
       ansi:
           enabled: ALWAYS
@@ -17,3 +17,12 @@ carimbai:
   jwt:
     secret: ${CARIMBAI_JWT_SECRET}
     expiration-seconds: 28800
+  oauth:
+    google:
+      client-id: ${CARIMBAI_GOOGLE_CLIENT_ID:}
+    apple:
+      client-id: ${CARIMBAI_APPLE_CLIENT_ID:}
+      team-id: ${CARIMBAI_APPLE_TEAM_ID:}
+    facebook:
+      app-id: ${CARIMBAI_FACEBOOK_APP_ID:}
+      app-secret: ${CARIMBAI_FACEBOOK_APP_SECRET:}

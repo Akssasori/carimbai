@@ -2,10 +2,13 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.admin.CreateCustomerRequest;
 import com.app.carimbai.dtos.customer.CustomerLoginRequest;
+import com.app.carimbai.enums.SocialProvider;
+import com.app.carimbai.execption.EmailAlreadyLinkedException;
 import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.models.fidelity.Customer;
 import com.app.carimbai.models.fidelity.Program;
 import com.app.carimbai.repositories.CustomerRepository;
+import com.app.carimbai.services.social.VerifiedSocialIdentity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,6 +86,47 @@ public class CustomerService {
 
         return customer;
 
+    }
+
+    @Transactional
+    public Customer socialLoginOrRegister(SocialProvider provider, VerifiedSocialIdentity identity) {
+        String prefixedProviderId = provider.name().toLowerCase() + ":" + identity.subject();
+
+        // 1. Match exato por providerId
+        var existing = customerRepository.findByProviderId(prefixedProviderId);
+        if (existing.isPresent()) {
+            Customer c = existing.get();
+            if (identity.name() != null && !identity.name().isBlank()) {
+                c.setName(identity.name());
+            }
+            return customerRepository.save(c);
+        }
+
+        // 2. Sem providerId - tentar vincular por email
+        if (identity.email() != null && !identity.email().isBlank()) {
+            var byEmail = customerRepository.findByEmail(identity.email());
+            if (byEmail.isPresent()) {
+                Customer c = byEmail.get();
+                if (c.getProviderId() == null || c.getProviderId().isBlank()) {
+                    // Vincular ao provedor social
+                    c.setProviderId(prefixedProviderId);
+                    if (identity.name() != null && !identity.name().isBlank()) {
+                        c.setName(identity.name());
+                    }
+                    return customerRepository.save(c);
+                } else {
+                    // Email já vinculado a outro provedor
+                    throw new EmailAlreadyLinkedException(identity.email());
+                }
+            }
+        }
+
+        // 3. Criar novo customer
+        Customer newCustomer = new Customer();
+        newCustomer.setProviderId(prefixedProviderId);
+        newCustomer.setEmail(identity.email());
+        newCustomer.setName(identity.name());
+        return customerRepository.save(newCustomer);
     }
 
 }
