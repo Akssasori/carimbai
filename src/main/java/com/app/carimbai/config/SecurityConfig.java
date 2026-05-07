@@ -63,7 +63,10 @@ public class SecurityConfig {
                                 "/api/redeem/**",
                                 "/api/admin/**",
                                 "/api/merchants/**",
-                                "/api/staff-users/**"
+                                "/api/staff-users/**",
+                                "/api/staff/dashboard/**",
+                                "/api/staff/stamps/**",
+                                "/api/staff/rewards/**"
                         ).authenticated()
 
                         .anyRequest().denyAll()
