@@ -1,5 +1,6 @@
 package com.app.carimbai.config;
 
+import com.app.carimbai.repositories.CustomerRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
 import com.app.carimbai.security.JwtAuthenticationFilter;
 import com.app.carimbai.services.JwtService;
@@ -25,16 +26,20 @@ public class SecurityConfig {
 
     private final JwtService jwtService;
     private final StaffUserRepository staffUserRepository;
+    private final CustomerRepository customerRepository;
 
-    public SecurityConfig(JwtService jwtService, StaffUserRepository staffUserRepository) {
+    public SecurityConfig(JwtService jwtService,
+                          StaffUserRepository staffUserRepository,
+                          CustomerRepository customerRepository) {
         this.jwtService = jwtService;
         this.staffUserRepository = staffUserRepository;
+        this.customerRepository = customerRepository;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtService, staffUserRepository);
+        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtService, staffUserRepository, customerRepository);
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -53,9 +58,15 @@ public class SecurityConfig {
                                 "/error"
                         ).permitAll()
 
-                        .requestMatchers("/api/cards/**").permitAll()
-                        .requestMatchers("/api/qr/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/merchants/*/programs").permitAll()
+
+                        // Rotas do cliente final: exigem token de cliente.
+                        .requestMatchers(HttpMethod.GET, "/api/cards/customer/**").hasAuthority("CUSTOMER")
+                        .requestMatchers(HttpMethod.GET, "/api/cards/*/redeem-qr").hasAuthority("CUSTOMER")
+                        .requestMatchers(HttpMethod.GET, "/api/qr/**").hasAuthority("CUSTOMER")
+
+                        // Inscrição de cliente em programa pelo staff.
+                        .requestMatchers(HttpMethod.POST, "/api/cards").hasAnyAuthority("CASHIER", "ADMIN")
 
                         .requestMatchers(
                                 "/api/auth/switch-merchant",

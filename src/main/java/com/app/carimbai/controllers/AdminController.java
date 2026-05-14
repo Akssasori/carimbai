@@ -3,6 +3,7 @@ package com.app.carimbai.controllers;
 
 import com.app.carimbai.dtos.admin.SetPinRequest;
 import com.app.carimbai.services.StaffService;
+import com.app.carimbai.utils.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 
@@ -26,7 +27,8 @@ public class AdminController {
     @PostMapping("/staff-users/{id}/pin")
     public ResponseEntity<?> setStaffPin(@PathVariable Long id,
                                          @RequestBody SetPinRequest request) {
-        staffService.setPin(id, request.pin());
+        Long callerMerchantId = SecurityUtils.getActiveMerchantId();
+        staffService.setPin(id, request.pin(), callerMerchantId);
         return ResponseEntity.ok().build();
     }
 

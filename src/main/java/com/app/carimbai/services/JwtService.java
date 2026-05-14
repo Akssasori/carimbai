@@ -2,6 +2,7 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.core.StaffUserMerchant;
+import com.app.carimbai.models.fidelity.Customer;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
@@ -16,7 +17,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.time.Instant;
 import java.util.Date;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +29,9 @@ public class JwtService {
 
     @Value("${carimbai.jwt.expiration-seconds:28800}")
     private long expirationSeconds;
+
+    @Value("${carimbai.jwt.customer-expiration-seconds:2592000}")
+    private long customerExpirationSeconds;
 
     @PostConstruct
     public void init() {
@@ -46,6 +49,20 @@ public class JwtService {
                 .claim("role", activeLink.getRole().name())
                 .claim("merchantId", activeLink.getMerchant().getId())
                 .claim("email", user.getEmail())
+                .signWith(signingKey)
+                .compact();
+    }
+
+    public String generateCustomerToken(Customer customer) {
+        Instant now = Instant.now();
+        Instant exp = now.plusSeconds(customerExpirationSeconds);
+
+        return Jwts.builder()
+                .subject(customer.getId().toString())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(exp))
+                .claim("type", "CUSTOMER")
+                .claim("email", customer.getEmail())
                 .signWith(signingKey)
                 .compact();
     }
@@ -77,6 +94,11 @@ public class JwtService {
     public boolean isExpired(String token) {
         Date exp = parseToken(token).getPayload().getExpiration();
         return exp.before(new Date());
+    }
+
+    public String extractTokenType(String token) {
+        Claims claims = parseToken(token).getPayload();
+        return claims.get("type", String.class);
     }
 
 }

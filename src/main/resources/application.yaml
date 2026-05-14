@@ -10,6 +10,7 @@ carimbai:
   hmac-secret: ${CARIMBAI_HMAC_SECRET}
   stamps-needed: 10
   stamps-default-needed: 10
+  timezone: ${CARIMBAI_TIMEZONE:America/Sao_Paulo}
   rate-limit:
     seconds: 120
   qr-ttl:
@@ -17,9 +18,10 @@ carimbai:
   jwt:
     secret: ${CARIMBAI_JWT_SECRET}
     expiration-seconds: 28800
+    customer-expiration-seconds: 2592000
   oauth:
     google:
-      client-id: ${CARIMBAI_GOOGLE_CLIENT_ID:}
+      client-id: ${CARIMBAI_GOOGLE_CLIENT_ID}
     apple:
       client-id: ${CARIMBAI_APPLE_CLIENT_ID:}
       team-id: ${CARIMBAI_APPLE_TEAM_ID:}
