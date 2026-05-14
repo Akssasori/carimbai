@@ -17,7 +17,7 @@ carimbai:
     seconds: 90
   jwt:
     secret: ${CARIMBAI_JWT_SECRET}
-    expiration-seconds: 28800
+    expiration-seconds: 43200
     customer-expiration-seconds: 2592000
   oauth:
     google:

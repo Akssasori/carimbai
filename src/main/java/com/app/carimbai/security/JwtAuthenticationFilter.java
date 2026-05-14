@@ -48,17 +48,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = header.substring(7);
 
             try {
-                if (!jwtService.isExpired(token)) {
-                    String tokenType = jwtService.extractTokenType(token);
+                if (jwtService.isExpired(token)) {
+                    // Token foi enviado mas esta expirado: responde 401 explicito para
+                    // o front detectar e mandar o usuario para o login.
+                    SecurityContextHolder.clearContext();
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token expired");
+                    return;
+                }
 
-                    if ("CUSTOMER".equals(tokenType)) {
-                        authenticateCustomer(token, request);
-                    } else {
-                        authenticateStaff(token, request);
-                    }
+                String tokenType = jwtService.extractTokenType(token);
+
+                if ("CUSTOMER".equals(tokenType)) {
+                    authenticateCustomer(token, request);
+                } else {
+                    authenticateStaff(token, request);
                 }
             } catch (JwtException | IllegalArgumentException e) {
+                // Token malformado / assinatura invalida: 401 explicito.
                 SecurityContextHolder.clearContext();
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid token");
+                return;
             }
         }
 
