@@ -7,7 +7,9 @@ import com.app.carimbai.dtos.customer.CustomerLoginResponse;
 import com.app.carimbai.dtos.customer.SocialLoginRequest;
 import com.app.carimbai.facade.UserRegistrationFacade;
 import com.app.carimbai.mappers.CustomerMapper;
+import com.app.carimbai.models.fidelity.Customer;
 import com.app.carimbai.services.CustomerService;
+import com.app.carimbai.services.JwtService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,7 @@ public class CustomerController {
     private final CustomerService customerService;
     private final CustomerMapper customerMapper;
     private final UserRegistrationFacade userRegistrationFacade;
+    private final JwtService jwtService;
 
     @Operation( summary = "Create a new customer",
             description = "Creates a new customer with the provided details.")
@@ -42,13 +45,17 @@ public class CustomerController {
             description = "Logs in an existing customer or registers a new one based on the provided details.")
     @PostMapping("/login-or-register")
     public ResponseEntity<CustomerLoginResponse> loginOrRegister(@RequestBody CustomerLoginRequest request) {
-        return ResponseEntity.ok(customerMapper.customerToCustomerLoginResponse(userRegistrationFacade.registerUser(request)));
+        Customer customer = userRegistrationFacade.registerUser(request);
+        String token = jwtService.generateCustomerToken(customer);
+        return ResponseEntity.ok(customerMapper.customerToCustomerLoginResponse(customer, token));
     }
 
     @Operation(summary = "Customer Social Login",
             description = "Logs in or registers a customer via Google, Apple or Facebook token.")
     @PostMapping("/social-login")
     public ResponseEntity<CustomerLoginResponse> socialLogin(@Valid @RequestBody SocialLoginRequest request) {
-        return ResponseEntity.ok(customerMapper.customerToCustomerLoginResponse(userRegistrationFacade.socialLogin(request)));
+        Customer customer = userRegistrationFacade.socialLogin(request);
+        String token = jwtService.generateCustomerToken(customer);
+        return ResponseEntity.ok(customerMapper.customerToCustomerLoginResponse(customer, token));
     }
 }

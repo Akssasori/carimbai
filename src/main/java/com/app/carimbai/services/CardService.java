@@ -7,8 +7,10 @@ import com.app.carimbai.dtos.redeem.RedeemQrResponse;
 import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.repositories.CardRepository;
+import com.app.carimbai.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,12 +32,17 @@ public class CardService {
 
     @Transactional(readOnly = true)
     public CardListResponse getCustomerCards(Long customerId) {
+        Long authenticatedCustomerId = SecurityUtils.getRequiredCustomerId();
+        if (!authenticatedCustomerId.equals(customerId)) {
+            throw new AccessDeniedException("Customer can only access their own cards");
+        }
+
         List<Card> cards = cardRepository.findByCustomerIdWithProgram(customerId);
-        
+
         List<CardItemDto> cardDtos = cards.stream()
                 .map(this::toDto)
                 .toList();
-        
+
         return new CardListResponse(cardDtos);
     }
 
@@ -68,6 +75,12 @@ public class CardService {
         var program = programService.findById(programId);
         var customer = customerService.findById(customerId);
 
+        // O staff só pode inscrever clientes em programas do merchant ativo dele.
+        Long activeMerchantId = SecurityUtils.getActiveMerchantId();
+        if (!program.getMerchant().getId().equals(activeMerchantId)) {
+            throw new AccessDeniedException("Program does not belong to the staff's active merchant");
+        }
+
         return cardRepository.findByProgramIdAndCustomerId(program.getId(), customer.getId())
                 .map(existing -> new CardResult(existing, false))
                 .orElseGet(() -> {
@@ -90,6 +103,12 @@ public class CardService {
     public RedeemQrResponse generateRedeemQr(Long cardId) {
         Card card = cardRepository.findById(cardId)
                 .orElseThrow(() -> new IllegalArgumentException("Card not found: " + cardId));
+
+        Long authenticatedCustomerId = SecurityUtils.getRequiredCustomerId();
+        if (!card.getCustomer().getId().equals(authenticatedCustomerId)) {
+            throw new AccessDeniedException("Customer can only generate redeem QR for their own card");
+        }
+
         if (card.getStatus() != CardStatus.READY_TO_REDEEM) {
             throw new IllegalArgumentException("Card status is not READY_TO_REDEEM");
         }

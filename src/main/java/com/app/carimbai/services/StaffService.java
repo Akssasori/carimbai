@@ -9,6 +9,7 @@ import com.app.carimbai.repositories.StaffUserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,9 +40,15 @@ public class StaffService {
         return user;
     }
 
-    public void setPin(Long cashierId, String rawPin) {
+    public void setPin(Long cashierId, String rawPin, Long callerMerchantId) {
         if (rawPin == null || rawPin.length() < 4 || rawPin.length() > 10)
             throw new IllegalArgumentException("PIN must be 4..10 digits");
+
+        // O staff alvo precisa estar ativo no merchant ativo de quem está chamando.
+        staffMerchantRepository
+                .findByStaffUserIdAndMerchantIdAndActiveTrue(cashierId, callerMerchantId)
+                .orElseThrow(() -> new AccessDeniedException(
+                        "Target staff does not belong to caller's active merchant"));
 
         var user = staffUserRepository.findById(cashierId)
                 .orElseThrow(() -> new IllegalArgumentException("Cashier not found"));

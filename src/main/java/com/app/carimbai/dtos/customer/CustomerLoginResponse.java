@@ -5,6 +5,7 @@ public record CustomerLoginResponse(
         String name,
         String email,
         String phone,
-        String providerId
+        String providerId,
+        String token
 ) {
 }

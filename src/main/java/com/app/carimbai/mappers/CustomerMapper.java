@@ -11,6 +11,8 @@ import org.mapstruct.Mapping;
 public interface CustomerMapper {
 
     CreateCustomerResponse customerToCreateCustomerResponse(Customer customer);
+
     @Mapping(target = "customerId", source = "customer.id")
-    CustomerLoginResponse customerToCustomerLoginResponse(Customer customer);
+    @Mapping(target = "token", source = "token")
+    CustomerLoginResponse customerToCustomerLoginResponse(Customer customer, String token);
 }

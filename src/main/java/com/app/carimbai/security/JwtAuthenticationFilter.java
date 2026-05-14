@@ -1,6 +1,8 @@
 package com.app.carimbai.security;
 
 import com.app.carimbai.models.core.StaffUser;
+import com.app.carimbai.models.fidelity.Customer;
+import com.app.carimbai.repositories.CustomerRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
 import com.app.carimbai.services.JwtService;
 import io.jsonwebtoken.JwtException;
@@ -24,10 +26,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final StaffUserRepository staffRepo;
+    private final CustomerRepository customerRepo;
 
-    public JwtAuthenticationFilter(JwtService jwtService, StaffUserRepository staffRepo) {
+    public JwtAuthenticationFilter(JwtService jwtService,
+                                   StaffUserRepository staffRepo,
+                                   CustomerRepository customerRepo) {
         this.jwtService = jwtService;
         this.staffRepo = staffRepo;
+        this.customerRepo = customerRepo;
     }
 
     @Override
@@ -43,21 +49,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             try {
                 if (!jwtService.isExpired(token)) {
-                    Long staffId = jwtService.extractStaffId(token);
-                    String role = jwtService.extractRole(token);
-                    Long merchantId = jwtService.extractMerchantId(token);
+                    String tokenType = jwtService.extractTokenType(token);
 
-                    StaffUser user = staffRepo.findById(staffId)
-                            .orElse(null);
-
-                    if (user != null && Boolean.TRUE.equals(user.getActive())) {
-                        var authorities = List.of(new SimpleGrantedAuthority(role));
-                        var auth = new UsernamePasswordAuthenticationToken(
-                                user, Map.of("merchantId", merchantId, "role", role), authorities
-                        );
-                        SecurityContextHolder.getContext().setAuthentication(auth);
-
-                        request.setAttribute(ATTR_MERCHANT_ID, merchantId);
+                    if ("CUSTOMER".equals(tokenType)) {
+                        authenticateCustomer(token, request);
+                    } else {
+                        authenticateStaff(token, request);
                     }
                 }
             } catch (JwtException | IllegalArgumentException e) {
@@ -66,5 +63,39 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private void authenticateStaff(String token, HttpServletRequest request) {
+        Long staffId = jwtService.extractStaffId(token);
+        String role = jwtService.extractRole(token);
+        Long merchantId = jwtService.extractMerchantId(token);
+
+        StaffUser user = staffRepo.findById(staffId).orElse(null);
+
+        if (user != null && Boolean.TRUE.equals(user.getActive())) {
+            var authorities = List.of(new SimpleGrantedAuthority(role));
+            var auth = new UsernamePasswordAuthenticationToken(
+                    user, Map.of("merchantId", merchantId, "role", role), authorities
+            );
+            SecurityContextHolder.getContext().setAuthentication(auth);
+            request.setAttribute(ATTR_MERCHANT_ID, merchantId);
+        }
+    }
+
+    private void authenticateCustomer(String token, HttpServletRequest request) {
+        // subject claim carrega o customerId (mesmo pattern do staff)
+        Long customerId = Long.parseLong(jwtService.parseToken(token).getPayload().getSubject());
+
+        Customer customer = customerRepo.findById(customerId).orElse(null);
+
+        if (customer != null) {
+            var authorities = List.of(new SimpleGrantedAuthority("CUSTOMER"));
+            var auth = new UsernamePasswordAuthenticationToken(
+                    customer,
+                    Map.of("customerId", customerId, "type", "CUSTOMER"),
+                    authorities
+            );
+            SecurityContextHolder.getContext().setAuthentication(auth);
+        }
     }
 }

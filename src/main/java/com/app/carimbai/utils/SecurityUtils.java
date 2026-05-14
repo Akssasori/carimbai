@@ -54,4 +54,18 @@ public class SecurityUtils {
         }
         throw new IllegalStateException("No active role in security context");
     }
+
+    public static Long getRequiredCustomerId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            throw new IllegalStateException("No authentication context");
+        }
+        Object credentials = auth.getCredentials();
+        if (credentials instanceof Map<?, ?> map) {
+            Object cid = map.get("customerId");
+            if (cid instanceof Long l) return l;
+            if (cid instanceof Integer i) return i.longValue();
+        }
+        throw new IllegalStateException("No customerId in security context");
+    }
 }
