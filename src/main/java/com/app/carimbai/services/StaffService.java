@@ -2,6 +2,8 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.admin.CreateStaffUserRequest;
 import com.app.carimbai.dtos.staff.admin.UpdateStaffMerchantRequest;
+import com.app.carimbai.enums.AuditAction;
+import com.app.carimbai.enums.AuditActorType;
 import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.core.StaffUserMerchant;
@@ -15,7 +17,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +29,7 @@ public class StaffService {
     private final StaffUserMerchantRepository staffMerchantRepository;
     private final BCryptPasswordEncoder encoder;
     private final MerchantService merchantService;
+    private final AuditService auditService;
 
     public StaffUser validateCashierPin(Long cashierId, String pin) {
         if (cashierId == null || pin == null || pin.isBlank())
@@ -58,6 +63,15 @@ public class StaffService {
 
         user.setPinHash(encoder.encode(rawPin));
         staffUserRepository.save(user);
+
+        auditService.log(AuditService.AuditEntry.builder()
+                .action(AuditAction.STAFF_PIN_SET)
+                .actorType(AuditActorType.STAFF)
+                .entityType("StaffUser")
+                .entityId(cashierId)
+                .merchantId(callerMerchantId)
+                .details(Map.of("targetStaffId", cashierId))
+                .build());
     }
 
     @Transactional
@@ -86,6 +100,18 @@ public class StaffService {
                 .build();
 
         staffMerchantRepository.save(link);
+
+        auditService.log(AuditService.AuditEntry.builder()
+                .action(AuditAction.STAFF_CREATED)
+                .actorType(AuditActorType.STAFF)
+                .entityType("StaffUser")
+                .entityId(staffUser.getId())
+                .merchantId(merchant.getId())
+                .details(Map.of(
+                        "email", staffUser.getEmail(),
+                        "role", request.role().name()
+                ))
+                .build());
 
         return staffUser;
     }
@@ -121,9 +147,39 @@ public class StaffService {
             }
         }
 
+        boolean roleChanged = request.role() != null && request.role() != link.getRole();
+        boolean activeChanged = request.active() != null && !request.active().equals(link.getActive());
+
         if (request.role() != null) link.setRole(request.role());
         if (request.active() != null) link.setActive(request.active());
 
-        return staffMerchantRepository.save(link);
+        StaffUserMerchant saved = staffMerchantRepository.save(link);
+
+        if (roleChanged) {
+            auditService.log(AuditService.AuditEntry.builder()
+                    .action(AuditAction.STAFF_ROLE_CHANGED)
+                    .actorType(AuditActorType.STAFF)
+                    .actorId(callerStaffId)
+                    .entityType("StaffUser")
+                    .entityId(staffId)
+                    .merchantId(merchantId)
+                    .details(Map.of("newRole", saved.getRole().name()))
+                    .build());
+        }
+        if (activeChanged) {
+            auditService.log(AuditService.AuditEntry.builder()
+                    .action(Boolean.TRUE.equals(saved.getActive())
+                            ? AuditAction.STAFF_ACTIVATED
+                            : AuditAction.STAFF_DEACTIVATED)
+                    .actorType(AuditActorType.STAFF)
+                    .actorId(callerStaffId)
+                    .entityType("StaffUser")
+                    .entityId(staffId)
+                    .merchantId(merchantId)
+                    .details(new HashMap<>())
+                    .build());
+        }
+
+        return saved;
     }
 }

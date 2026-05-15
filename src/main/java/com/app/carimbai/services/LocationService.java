@@ -3,6 +3,8 @@ package com.app.carimbai.services;
 import com.app.carimbai.dtos.admin.CreateLocationRequest;
 import com.app.carimbai.dtos.staff.admin.LocationFlags;
 import com.app.carimbai.dtos.staff.admin.UpdateLocationRequest;
+import com.app.carimbai.enums.AuditAction;
+import com.app.carimbai.enums.AuditActorType;
 import com.app.carimbai.models.core.Location;
 import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.repositories.LocationRepository;
@@ -13,7 +15,9 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +26,7 @@ public class LocationService {
     private final MerchantService merchantService;
     private final LocationRepository locationRepository;
     private final ObjectMapper objectMapper;
+    private final AuditService auditService;
 
     public Location saveLocationByMerchantId(Long merchantId, CreateLocationRequest request) {
 
@@ -35,7 +40,21 @@ public class LocationService {
         loc.setFlags("{}");
         loc.setActive(true);
 
-        return locationRepository.save(loc);
+        Location saved = locationRepository.save(loc);
+
+        auditService.log(AuditService.AuditEntry.builder()
+                .action(AuditAction.LOCATION_CREATED)
+                .actorType(AuditActorType.STAFF)
+                .entityType("Location")
+                .entityId(saved.getId())
+                .merchantId(merchantId)
+                .details(Map.of(
+                        "name", saved.getName(),
+                        "address", saved.getAddress() != null ? saved.getAddress() : ""
+                ))
+                .build());
+
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -59,7 +78,30 @@ public class LocationService {
             loc.setFlags(serializeFlags(request.flags()));
         }
 
-        return locationRepository.save(loc);
+        Location saved = locationRepository.save(loc);
+
+        Map<String, Object> details = new HashMap<>();
+        if (request.name() != null) details.put("name", saved.getName());
+        if (request.address() != null) details.put("address", saved.getAddress() != null ? saved.getAddress() : "");
+        if (request.active() != null) details.put("active", saved.getActive());
+        if (request.flags() != null) {
+            details.put("flags", Map.of(
+                    "requirePinOnRedeem", Boolean.TRUE.equals(request.flags().requirePinOnRedeem()),
+                    "enableScanA", Boolean.TRUE.equals(request.flags().enableScanA()),
+                    "enableScanB", Boolean.TRUE.equals(request.flags().enableScanB())
+            ));
+        }
+
+        auditService.log(AuditService.AuditEntry.builder()
+                .action(AuditAction.LOCATION_UPDATED)
+                .actorType(AuditActorType.STAFF)
+                .entityType("Location")
+                .entityId(saved.getId())
+                .merchantId(merchantId)
+                .details(details)
+                .build());
+
+        return saved;
     }
 
     /**
