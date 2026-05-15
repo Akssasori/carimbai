@@ -68,4 +68,17 @@ public class SecurityUtils {
         }
         throw new IllegalStateException("No customerId in security context");
     }
+
+    /**
+     * Garante que o merchantId no path bate com o merchant ativo do staff logado.
+     * Evita que um ADMIN do merchant A passe merchantId=B na URL e opere no merchant errado.
+     * Chamar no inicio de qualquer endpoint admin que recebe `merchantId` como path var.
+     */
+    public static void requirePathMerchantMatchesActive(Long pathMerchantId) {
+        Long active = getActiveMerchantId();
+        if (!active.equals(pathMerchantId)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Path merchantId does not match the staff's active merchant");
+        }
+    }
 }

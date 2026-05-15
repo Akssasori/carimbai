@@ -1,6 +1,7 @@
 package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.admin.CreateStaffUserRequest;
+import com.app.carimbai.dtos.staff.admin.UpdateStaffMerchantRequest;
 import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.core.StaffUserMerchant;
@@ -13,6 +14,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -85,5 +88,42 @@ public class StaffService {
         staffMerchantRepository.save(link);
 
         return staffUser;
+    }
+
+    @Transactional(readOnly = true)
+    public List<StaffUserMerchant> listStaffByMerchant(Long merchantId) {
+        return staffMerchantRepository.findAllByMerchantIdWithStaff(merchantId);
+    }
+
+    /**
+     * Atualiza role e/ou active no vinculo staff_user_merchants para o (staffId, merchantId).
+     * Guard de auto-lockout: o admin logado nao pode (1) se desativar, (2) se rebaixar para CASHIER.
+     * Isso evita o cenario em que o unico ADMIN do merchant fica trancado fora.
+     */
+    @Transactional
+    public StaffUserMerchant updateStaffInMerchant(Long merchantId,
+                                                   Long staffId,
+                                                   UpdateStaffMerchantRequest request,
+                                                   Long callerStaffId) {
+        StaffUserMerchant link = staffMerchantRepository
+                .findByStaffUserIdAndMerchantId(staffId, merchantId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Staff " + staffId + " has no link with merchant " + merchantId));
+
+        boolean isSelf = callerStaffId != null && callerStaffId.equals(staffId);
+        if (isSelf) {
+            if (Boolean.FALSE.equals(request.active())) {
+                throw new AccessDeniedException("You cannot deactivate yourself in this merchant");
+            }
+            if (request.role() != null && request.role() != link.getRole()
+                    && link.getRole() != null && "ADMIN".equals(link.getRole().name())) {
+                throw new AccessDeniedException("You cannot demote yourself from ADMIN in this merchant");
+            }
+        }
+
+        if (request.role() != null) link.setRole(request.role());
+        if (request.active() != null) link.setActive(request.active());
+
+        return staffMerchantRepository.save(link);
     }
 }

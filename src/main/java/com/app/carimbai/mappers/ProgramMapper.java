@@ -3,6 +3,7 @@ package com.app.carimbai.mappers;
 import com.app.carimbai.config.MapStructConfig;
 import com.app.carimbai.dtos.ProgramItemDto;
 import com.app.carimbai.dtos.admin.CreateProgramResponse;
+import com.app.carimbai.dtos.staff.admin.AdminProgramItem;
 import com.app.carimbai.models.fidelity.Program;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -14,4 +15,7 @@ public interface ProgramMapper {
     CreateProgramResponse programToCreateProgramResponse(Program program);
 
     ProgramItemDto programToProgramItemDto(Program program);
+
+    @Mapping(target = "merchantId", source = "merchant.id")
+    AdminProgramItem programToAdminProgramItem(Program program);
 }
