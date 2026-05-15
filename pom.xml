@@ -121,6 +121,12 @@
             <artifactId>nimbus-jose-jwt</artifactId>
             <version>9.40</version>
         </dependency>
+        <!-- Rate limit in-memory para /api/auth/login -->
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j-core</artifactId>
+            <version>8.10.1</version>
+        </dependency>
         <!-- boilerplate -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>

@@ -3,6 +3,8 @@ package com.app.carimbai.services;
 import com.app.carimbai.dtos.RedeemRequest;
 import com.app.carimbai.dtos.RedeemResponse;
 import com.app.carimbai.dtos.TokenPayload;
+import com.app.carimbai.enums.AuditAction;
+import com.app.carimbai.enums.AuditActorType;
 import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.models.core.Location;
 import com.app.carimbai.models.core.StaffUser;
@@ -20,6 +22,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -33,6 +37,7 @@ public class RedeemService {
     private final StaffService staffService;
     private final ObjectMapper objectMapper;
     private final StampTokenService stampTokenService;
+    private final AuditService auditService;
 
     @Value("${carimbai.stamps-needed:10}")
     private Integer defaultStampsNeeded;
@@ -118,6 +123,23 @@ public class RedeemService {
         card.setStampsCount(0);
         card.setStatus(CardStatus.ACTIVE);
         cardRepo.save(card);
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("cardId", card.getId());
+        details.put("rewardId", reward.getId());
+        details.put("programId", program.getId());
+        details.put("rewardName", program.getRewardName());
+        if (location != null) details.put("locationId", location.getId());
+
+        auditService.log(AuditService.AuditEntry.builder()
+                .action(AuditAction.REWARD_REDEEMED)
+                .actorType(AuditActorType.STAFF)
+                .actorId(staffUser.getId())
+                .entityType("Reward")
+                .entityId(reward.getId())
+                .merchantId(activeMerchantId)
+                .details(details)
+                .build());
 
         return new RedeemResponse(true,
                 reward.getId(),

@@ -5,6 +5,8 @@ import com.app.carimbai.dtos.RequestMeta;
 import com.app.carimbai.dtos.StampRequest;
 import com.app.carimbai.dtos.StampResponse;
 import com.app.carimbai.dtos.TokenPayload;
+import com.app.carimbai.enums.AuditAction;
+import com.app.carimbai.enums.AuditActorType;
 import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.enums.StampSource;
 import com.app.carimbai.execption.CardReadyToRedeemException;
@@ -24,6 +26,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 import static com.app.carimbai.enums.StampType.CUSTOMER_QR;
@@ -38,6 +42,7 @@ public class StampsService {
     private final LocationRepository locationRepo;
     private final IdempotencyService idempotencyService;
     private final ObjectMapper objectMapper;
+    private final AuditService auditService;
 
     @Value("${carimbai.rate-limit.seconds:120}")
     private Integer rateWindowSeconds;
@@ -142,7 +147,24 @@ public class StampsService {
             }
         }
 
-        stampRepo.save(stamp);
+        Stamp savedStamp = stampRepo.save(stamp);
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("cardId", card.getId());
+        details.put("stamps", card.getStampsCount());
+        details.put("needed", needed);
+        details.put("rewardIssued", rewardIssued);
+        if (stamp.getLocation() != null) details.put("locationId", stamp.getLocation().getId());
+
+        auditService.log(AuditService.AuditEntry.builder()
+                .action(AuditAction.STAMP_APPLIED)
+                .actorType(AuditActorType.STAFF)
+                .actorId(staffUser.getId())
+                .entityType("Stamp")
+                .entityId(savedStamp.getId())
+                .merchantId(activeMerchantId)
+                .details(details)
+                .build());
 
         return new StampResponse(true,
                 card.getId(),

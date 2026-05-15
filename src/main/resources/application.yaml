@@ -17,8 +17,12 @@ carimbai:
     seconds: 90
   jwt:
     secret: ${CARIMBAI_JWT_SECRET}
-    expiration-seconds: 43200
+    expiration-seconds: 3600          # access token staff: 1h (com refresh)
     customer-expiration-seconds: 2592000
+    refresh-token-days: 30            # refresh token staff: 30d
+  login-rate-limit:
+    max-attempts: 5
+    window-minutes: 15
   oauth:
     google:
       client-id: ${CARIMBAI_GOOGLE_CLIENT_ID}

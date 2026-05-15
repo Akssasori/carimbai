@@ -4,8 +4,11 @@ import com.app.carimbai.execption.CardReadyToRedeemException;
 import com.app.carimbai.execption.DuplicateIdempotencyKeyException;
 import com.app.carimbai.execption.EmailAlreadyLinkedException;
 import com.app.carimbai.execption.InvalidSocialTokenException;
+import com.app.carimbai.execption.LoginRateLimitedException;
 import com.app.carimbai.execption.TooManyStampsException;
+import com.app.carimbai.services.RefreshTokenService;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -92,5 +95,24 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(Map.of("error", "EMAIL_ALREADY_LINKED", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(RefreshTokenService.RefreshTokenInvalidException.class)
+    public ResponseEntity<?> refreshTokenInvalid(RefreshTokenService.RefreshTokenInvalidException ex) {
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", "REFRESH_TOKEN_INVALID", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(LoginRateLimitedException.class)
+    public ResponseEntity<?> loginRateLimited(LoginRateLimitedException ex) {
+        return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(Map.of(
+                        "error", "RATE_LIMITED",
+                        "message", "Muitas tentativas de login. Tente novamente em alguns instantes.",
+                        "retryAfterSeconds", ex.getRetryAfterSeconds()
+                ));
     }
 }
