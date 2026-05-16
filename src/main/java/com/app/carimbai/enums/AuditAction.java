@@ -12,6 +12,8 @@ public enum AuditAction {
     LOGIN_RATE_LIMITED,
     LOGOUT,
     TOKEN_REFRESHED,
+    PASSWORD_RESET_REQUESTED,
+    PASSWORD_RESET_COMPLETED,
 
     // Loyalty operations
     STAMP_APPLIED,
@@ -30,5 +32,8 @@ public enum AuditAction {
 
     // Locations
     LOCATION_CREATED,
-    LOCATION_UPDATED
+    LOCATION_UPDATED,
+
+    // Notifications
+    PUSH_NOTIFICATION_TRIGGERED
 }

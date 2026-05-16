@@ -9,13 +9,18 @@ import com.app.carimbai.enums.AuditActorType;
 import com.app.carimbai.execption.LoginRateLimitedException;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.core.StaffUserMerchant;
+import com.app.carimbai.repositories.RefreshTokenRepository;
 import com.app.carimbai.repositories.StaffUserMerchantRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
 import com.app.carimbai.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +35,12 @@ public class AuthService {
     private final AuditService auditService;
     private final LoginRateLimitService loginRateLimitService;
     private final RefreshTokenService refreshTokenService;
+    private final PasswordResetTokenService passwordResetTokenService;
+    private final MailService mailService;
+    private final RefreshTokenRepository refreshTokenRepo;
+
+    @Value("${carimbai.app-base-url:http://localhost:5173}")
+    private String appBaseUrl;
 
     public LoginResponse login(LoginRequest request) {
         // Rate limit antes de qualquer outra coisa: previne brute force.
@@ -184,6 +195,63 @@ public class AuthService {
                 .action(AuditAction.LOGOUT)
                 .actorType(actor != null ? AuditActorType.STAFF : AuditActorType.ANONYMOUS)
                 .actorId(actor != null ? actor.getId() : null)
+                .build());
+    }
+
+    /**
+     * Inicia o fluxo de reset: gera token, envia email. Sempre "sucesso" do ponto
+     * de vista do cliente — nao revela se o email existe (anti-enumeration).
+     * Audit log diferencia internamente.
+     */
+    @Transactional
+    public void forgotPassword(String email) {
+        StaffUser user = email != null ? staffRepo.findByEmail(email).orElse(null) : null;
+
+        if (user == null || Boolean.FALSE.equals(user.getActive())) {
+            // Loga a tentativa mesmo assim, para investigacao de abuso futuro.
+            Map<String, Object> details = new HashMap<>();
+            details.put("email", email != null ? email : "");
+            details.put("reason", user == null ? "USER_NOT_FOUND" : "USER_INACTIVE");
+            auditService.log(AuditService.AuditEntry.builder()
+                    .action(AuditAction.PASSWORD_RESET_REQUESTED)
+                    .actorType(AuditActorType.ANONYMOUS)
+                    .success(false)
+                    .details(details)
+                    .build());
+            return;
+        }
+
+        PasswordResetTokenService.IssuedToken issued = passwordResetTokenService.issue(user);
+        String resetUrl = appBaseUrl + "/staff/reset-password?token=" + issued.rawToken();
+        mailService.sendPasswordResetEmail(user.getEmail(), null, resetUrl);
+
+        auditService.log(AuditService.AuditEntry.builder()
+                .action(AuditAction.PASSWORD_RESET_REQUESTED)
+                .actorType(AuditActorType.STAFF)
+                .actorId(user.getId())
+                .details(Map.of("email", user.getEmail()))
+                .build());
+    }
+
+    /**
+     * Consome o token e troca a senha. Tambem revoga TODOS os refresh tokens do
+     * staff — qualquer device logado sera forcado a re-login.
+     * Em token invalido/expirado/usado, joga PasswordResetTokenInvalidException → 401.
+     */
+    @Transactional
+    public void resetPassword(String rawToken, String newPassword) {
+        StaffUser staff = passwordResetTokenService.consume(rawToken);
+
+        staff.setPasswordHash(passwordEncoder.encode(newPassword));
+        staffRepo.save(staff);
+
+        int revoked = refreshTokenRepo.revokeAllForStaff(staff.getId(), OffsetDateTime.now());
+
+        auditService.log(AuditService.AuditEntry.builder()
+                .action(AuditAction.PASSWORD_RESET_COMPLETED)
+                .actorType(AuditActorType.STAFF)
+                .actorId(staff.getId())
+                .details(Map.of("revokedRefreshTokens", revoked))
                 .build());
     }
 

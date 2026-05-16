@@ -50,6 +50,8 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/refresh",
                                 "/api/auth/logout",
+                                "/api/auth/forgot-password",
+                                "/api/auth/reset-password",
                                 "/api/customers/login-or-register",
                                 "/api/customers/social-login",
                                 "/api/staff/login",
@@ -61,11 +63,13 @@ public class SecurityConfig {
                         ).permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/merchants/*/programs").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/notifications/vapid-public-key").permitAll()
 
                         // Rotas do cliente final: exigem token de cliente.
                         .requestMatchers(HttpMethod.GET, "/api/cards/customer/**").hasAuthority("CUSTOMER")
                         .requestMatchers(HttpMethod.GET, "/api/cards/*/redeem-qr").hasAuthority("CUSTOMER")
                         .requestMatchers(HttpMethod.GET, "/api/qr/**").hasAuthority("CUSTOMER")
+                        .requestMatchers(HttpMethod.POST, "/api/notifications/subscribe").hasAuthority("CUSTOMER")
 
                         // Inscrição de cliente em programa pelo staff.
                         .requestMatchers(HttpMethod.POST, "/api/cards").hasAnyAuthority("CASHIER", "ADMIN")

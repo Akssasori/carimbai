@@ -6,6 +6,7 @@ import com.app.carimbai.execption.EmailAlreadyLinkedException;
 import com.app.carimbai.execption.InvalidSocialTokenException;
 import com.app.carimbai.execption.LoginRateLimitedException;
 import com.app.carimbai.execption.TooManyStampsException;
+import com.app.carimbai.services.PasswordResetTokenService;
 import com.app.carimbai.services.RefreshTokenService;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
@@ -102,6 +103,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("error", "REFRESH_TOKEN_INVALID", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(PasswordResetTokenService.PasswordResetTokenInvalidException.class)
+    public ResponseEntity<?> passwordResetTokenInvalid(PasswordResetTokenService.PasswordResetTokenInvalidException ex) {
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", "PASSWORD_RESET_TOKEN_INVALID", "message", ex.getMessage()));
     }
 
     @ExceptionHandler(LoginRateLimitedException.class)
