@@ -9,6 +9,7 @@ import com.app.carimbai.enums.AuditAction;
 import com.app.carimbai.enums.AuditActorType;
 import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.enums.StampSource;
+import com.app.carimbai.events.StampAppliedEvent;
 import com.app.carimbai.execption.CardReadyToRedeemException;
 import com.app.carimbai.execption.TooManyStampsException;
 import com.app.carimbai.models.StampToken;
@@ -23,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -43,6 +45,7 @@ public class StampsService {
     private final IdempotencyService idempotencyService;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${carimbai.rate-limit.seconds:120}")
     private Integer rateWindowSeconds;
@@ -165,6 +168,19 @@ public class StampsService {
                 .merchantId(activeMerchantId)
                 .details(details)
                 .build());
+
+        // Publica evento para listeners (push notification etc) reagirem
+        // APOS o commit da transacao.
+        eventPublisher.publishEvent(new StampAppliedEvent(
+                savedStamp.getId(),
+                card.getId(),
+                card.getCustomer().getId(),
+                activeMerchantId,
+                card.getProgram().getMerchant().getName(),
+                program.getName(),
+                card.getStampsCount(),
+                needed
+        ));
 
         return new StampResponse(true,
                 card.getId(),
