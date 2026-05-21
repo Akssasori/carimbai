@@ -46,6 +46,7 @@ public class RefreshToken {
     @JoinColumn(name = "merchant_id", nullable = false)
     private Merchant merchant;
 
+    @Builder.Default
     @Column(name = "issued_at", nullable = false)
     private OffsetDateTime issuedAt = OffsetDateTime.now();
 
