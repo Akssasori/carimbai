@@ -36,6 +36,7 @@ public class AuditLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Builder.Default
     @Column(name = "occurred_at", nullable = false)
     private OffsetDateTime occurredAt = OffsetDateTime.now();
 
@@ -59,6 +60,7 @@ public class AuditLog {
     @Column(name = "merchant_id")
     private Long merchantId;
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean success = true;
 

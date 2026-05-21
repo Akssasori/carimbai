@@ -41,6 +41,7 @@ public class PasswordResetToken {
     @JoinColumn(name = "staff_user_id", nullable = false)
     private StaffUser staffUser;
 
+    @Builder.Default
     @Column(name = "issued_at", nullable = false)
     private OffsetDateTime issuedAt = OffsetDateTime.now();
 

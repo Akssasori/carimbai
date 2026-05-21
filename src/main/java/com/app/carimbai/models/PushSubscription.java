@@ -50,9 +50,11 @@ public class PushSubscription {
     @Column(nullable = false, length = 255)
     private String auth;
 
+    @Builder.Default
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
+    @Builder.Default
     @Column(name = "last_used_at", nullable = false)
     private OffsetDateTime lastUsedAt = OffsetDateTime.now();
 }
