@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": []
+  },
+  "env": {
+    "CARIMBAI_DB_URL": "postgresql://postgres:postgres@localhost:5434/carimbai"
+  }
+}
