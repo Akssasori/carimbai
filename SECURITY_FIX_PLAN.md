@@ -21,7 +21,7 @@
 
 | FIX | Sev. | Achado | Correção proposta | Arquivos | Risco | Status |
 |---|---|---|---|---|---|---|
-| **FIX-02** | 🔴 Crítica | SEC-001/002/004/021 | **Autenticar o cliente** (sessão/JWT próprio pós social-login ou OTP) e **escopar `/api/cards/**`, `/api/qr/**`, `login-or-register` ao titular** | `SecurityConfig`, `CardsController`, `QrCodeController`, `CardService`, novo fluxo de sessão de cliente, **frontend** | **Alto** (contrato + PWA) | **Fases A+B+C implementadas** (39/39) — **SEC-001/002/004 fechados** p/ cartões/QR. Residual: `login-or-register` (PWA social-only). ⚠️ Fase C quebra login-light → coordenar deploy (PWA social-only antes). Ver `FIX-02-PROPOSAL.md` |
+| **FIX-02** | 🔴 Crítica | SEC-001/002/004/021 | **Autenticar o cliente** (sessão/JWT próprio pós social-login ou OTP) e **escopar `/api/cards/**`, `/api/qr/**`, `login-or-register` ao titular** | `SecurityConfig`, `CardsController`, `QrCodeController`, `CardService`, novo fluxo de sessão de cliente, **frontend** | **Alto** (contrato + PWA) | ✅ **Fases A+B+C+D implementadas** (41/41) — **SEC-001/002/004 totalmente fechados**. PWA social-only; `login-or-register` exige staff (`CASHIER/ADMIN/PLATFORM_ADMIN`); `POST /api/customers` exige `PLATFORM_ADMIN`. ⚠️ Sequência de deploy: PWA antes do backend. Ver `FIX-02-PROPOSAL.md` / `RETEST_REPORT.md` §2-septies |
 | **FIX-01** | 🔴 Alta | SEC-003 (+028/005/011) | **Rotacionar** JWT/HMAC/DB; **remover fallbacks** de segredo; criar **`application-prod.yaml`** (Swagger/`show-sql` off, sem default sensível); fixar `SPRING_PROFILES_ACTIVE=prod`; limpar histórico git (BFG) | `application*.yaml`, novo `application-prod.yaml`, env/GitHub Secrets, systemd | Médio (rotação invalida JWTs) | **Código aplicado** (prod.yaml + de-fang dev/local); rotação/VPS/histórico **pendentes (você)** — ver `FIX-01-PROPOSAL.md` |
 | **FIX-03** | 🔴 Alta | SEC-020 (+017 cross-tenant) | **Escopar endpoints ADMIN ao merchant do token** (validar `merchantId(path/body) == token`); `setPin` só para staff do mesmo merchant; papel `PLATFORM_ADMIN` para `createMerchant` | `SecurityUtils`, `ProgramService`, `LocationService`, `StaffService`, `JwtAuthenticationFilter`, `MerchantController`, `StaffUser` (+migration) | **Alto** (autorização) | **Implementado por completo** — escopo de merchant + `PLATFORM_ADMIN` para createMerchant; testes 29/29. Requer **bootstrap** `platform_admin=TRUE` |
 | **FIX-23** | 🟡 Alta* | SEC-034 | Resgate: PIN avaliado **sempre** (fail-safe quando sem location), fechando o bypass por omissão de `locationId` | `RedeemService` | Médio (resgate sem location passa a exigir PIN) | **Implementado** com testes (31/31). Endurecimento opcional (REDEEM_QR obrigatório) segue proposto |
@@ -36,13 +36,13 @@
 
 | FIX | Achado | Correção | Arquivos | Risco | Status |
 |---|---|---|---|---|---|
-| FIX-04 | SEC-006/017/032 | Rate limiting/anti-automação (login, cadastro, social, cards/qr); lockout de PIN; limite de tamanho de requisição | filtro/bucket (Bucket4j), `RedeemService`/`StaffService`, config | Médio | Proposto |
+| FIX-04 | SEC-006/017/032 | Rate limiting/anti-automação (login, cadastro, social, cards/qr); lockout de PIN; limite de tamanho de requisição | filtro/bucket (Bucket4j), `RedeemService`/`StaffService`, config | Médio | ✅ **Implementado** (51/51): `RateLimitFilter` (Bucket4j in-mem) — login/social/login-or-register 10/min, cards 30/min, qr 60/min por IP; `PinLockoutService` 5 erros/10min → 15min; Tomcat 256KB. Multi-nó futuro → Redis |
 | FIX-05 | SEC-018 | MFA (TOTP) para `ADMIN` | `staff_users`(+col), `AuthService`, **frontend** | Alto | Proposto |
-| FIX-08 | SEC-008 | Login anti-enumeração (respostas uniformes p/ inexistente/inativo/sem vínculo) | `AuthService`, `GlobalExceptionHandler` | Médio (muda corpo de erro/contrato) | **Proposto** (auth) |
-| FIX-11 | SEC-012 | JWT: `iss`/`aud`, TTL menor, revogação/idle, logout | `JwtService`, filtro, `AuthService`, **frontend** | Médio-Alto | Proposto |
-| FIX-12 | SEC-023/024/025 | Frontend: tirar JWT/PII do `localStorage`; *output encoding*; CSP do PWA | `../carimbai-app` | Médio (frontend) | Proposto (outro repo) |
-| FIX-14 | SEC-013 | Cripto/pseudonimização de `document` em repouso; `sslmode=require` no DB | entidades/migrations, config, infra | Médio (migração) | Proposto |
-| FIX-10 | SEC-026/027 | Logging de auditoria + gestão de logs (retenção/rotação/acesso/mascaramento) | novo `audit`/logback, config | Baixo | Proposto |
+| FIX-08 | SEC-008 | Login anti-enumeração (respostas uniformes p/ inexistente/inativo/sem vínculo) | `AuthService`, `GlobalExceptionHandler` | Médio (muda corpo de erro/contrato) | ✅ **Implementado** (70/70): nova `InvalidCredentialsException` → 401 `{"error":"INVALID_CREDENTIALS"}` em **todos** os caminhos (e-mail inexistente, inativo, senha errada, sem vínculo); bcrypt sempre roda (`dummyPasswordHash` em `@PostConstruct`) — anti-timing. Audit ainda registra o motivo real |
+| FIX-11 | SEC-012 | JWT: `iss`/`aud`, TTL menor, revogação/idle, logout | `JwtService`, filtro, `AuthService`, **frontend** | Médio-Alto | ✅ **Implementado (backend)** (64/64): tokens com `iss=carimbai`, `aud=staff/customer`, `jti` único; `parseToken` exige issuer; `TokenRevocationService` in-mem + `POST /api/auth/logout` (idempotente); filtro consulta denylist. **Frontend** (chamar logout no PWA/StaffScreen) → cai dentro do FIX-12 |
+| FIX-12 | SEC-023/024/025 | Frontend: tirar JWT/PII do `localStorage`; *output encoding*; CSP do PWA | `../carimbai-app` | Médio (frontend) | **Parcial**: ✅ CSP estrita + HSTS + headers de segurança no `vercel.json`; ✅ logout backend chamado em customer + staff (revoga JWT no servidor); ⚠️ JWT segue em `localStorage` (UX vs migração para cookie httpOnly + CSRF — adiado) |
+| FIX-14 | SEC-013 | Cripto/pseudonimização de `document` em repouso; `sslmode=require` no DB | entidades/migrations, config, infra | Médio (migração) | **Parcial**: `sslmode=require` configurado em `application-prod.yaml` via Hikari (override `DB_SSL_MODE` para loopback). Cripto de `document` em repouso segue pendente |
+| FIX-10 | SEC-026/027 | Logging de auditoria + gestão de logs (retenção/rotação/acesso/mascaramento) | novo `audit`/logback, config | Baixo | ✅ **Implementado** (56/56): `AuditService` + `AuditEvent` + `AuditMask`; eventos plugados em login staff/social, redeem, enroll, PIN, merchant/staff create, access_denied central. `logback-spring.xml` com `audit.log` separado (180d, 5GB) e `application.log` rotativo (14d, 1GB) em prod |
 
 ---
 
@@ -50,7 +50,7 @@
 
 | FIX | Achado | Correção | Risco | Status |
 |---|---|---|---|---|
-| FIX-15 | SEC-030 | CORS por profile (só origem do PWA em prod) | Baixo | **Adiado** (depende de FIX-01) |
+| FIX-15 | SEC-030 | CORS por profile (só origem do PWA em prod) | Baixo | ✅ **Implementado**: `app.cors.allowed-origins` injetado por `@Value`; base inclui localhost + Vercel; `application-prod.yaml` restringe a `https://carimbai-app.vercel.app`. Override por env `APP_CORS_ALLOWED_ORIGINS` |
 | FIX-19 | SEC-031 | Backups documentados, criptografados, restauração testada | — | Proposto (operacional) |
 | FIX-20 | SEC-010 | Docker não-root, alinhar porta, fixar imagens | Baixo (dev) | Proposto |
 | FIX-21 | SEC-019 | Reset/troca de senha seguro (quando houver provedor de e-mail) | — | Futuro |

@@ -23,8 +23,19 @@
 >   - ⚠️ **Deploy:** a Fase C **quebra** login-light (sem token → 403 nos cartões).
 >     O PWA precisa estar **social-only** antes do corte em produção.
 >     **Residual:** retirar/`demote` do `login-or-register` (onboarding social-only).
-> - ⏳ **Fase D:** PWA social-only + remover o `login-or-register`; validar em
->   produção (TC-AUTHZ-05..08) e remover código morto.
+> - ✅ **Fase D (fecha o resíduo) — IMPLEMENTADA** (2026-06-14). **Backend:**
+>   `POST /api/customers/login-or-register` agora exige staff
+>   (`@PreAuthorize("hasAnyAuthority('CASHIER','ADMIN','PLATFORM_ADMIN')")` +
+>   `/api/customers/**` em `authenticated`); `POST /api/customers` restrito a
+>   `PLATFORM_ADMIN`. **Frontend:** `CustomerOnboarding` é **social-only**
+>   (formulário de e-mail/nome/telefone removido); `useCustomer.loginOrRegister`
+>   e `apiService.loginOrRegisterCustomer` removidos; sessões antigas sem token
+>   são descartadas no boot. `./mvnw test` **41/41**, `npm run build` ✅,
+>   `npm run lint` 0 erros, verificação visual no preview confirma a tela
+>   social-only. **SEC-001 totalmente fechado.**
+>   - ⚠️ Sequência de deploy: PWA (Fase D) antes do corte de backend (Fase D).
+>     `login-or-register` agora exige Bearer de staff — chamadas sem token (PWA
+>     antigo em cache) recebem **401/403**, que é o comportamento desejado.
 
 ## 1. Problema
 

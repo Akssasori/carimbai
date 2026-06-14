@@ -3,8 +3,13 @@ package com.app.carimbai.handler;
 import com.app.carimbai.execption.CardReadyToRedeemException;
 import com.app.carimbai.execption.DuplicateIdempotencyKeyException;
 import com.app.carimbai.execption.EmailAlreadyLinkedException;
+import com.app.carimbai.execption.InvalidCredentialsException;
 import com.app.carimbai.execption.InvalidSocialTokenException;
 import com.app.carimbai.execption.TooManyStampsException;
+import com.app.carimbai.security.PinLockedException;
+import com.app.carimbai.security.audit.AuditEvent;
+import com.app.carimbai.security.audit.AuditService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,7 +22,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+    private final AuditService audit;
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<?> badRequest(IllegalArgumentException ex) {
@@ -36,6 +44,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ResponseEntity<?> accessDenied(org.springframework.security.access.AccessDeniedException ex) {
+        // FIX-10 / SEC-026 — registra toda negação central (cross-tenant, posse, @PreAuthorize).
+        audit.denied(AuditEvent.ACCESS_DENIED, Map.of("reason", ex.getClass().getSimpleName()));
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
                 .body(Map.of("error", "FORBIDDEN", "message", ex.getMessage()));
@@ -107,5 +117,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(Map.of("error", "EMAIL_ALREADY_LINKED", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<?> invalidCredentials(InvalidCredentialsException ex) {
+        // FIX-08 / SEC-008 — resposta uniforme: 401 + body fixo (sem mensagem do servidor).
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", "INVALID_CREDENTIALS"));
+    }
+
+    @ExceptionHandler(PinLockedException.class)
+    public ResponseEntity<?> pinLocked(PinLockedException ex) {
+        long retryAfterSec = Math.max(1, ex.getRetryAfter().getSeconds());
+        return ResponseEntity
+                .status(HttpStatus.LOCKED)
+                .header("Retry-After", String.valueOf(retryAfterSec))
+                .body(Map.of("error", "PIN_LOCKED", "retryAfter", retryAfterSec));
     }
 }

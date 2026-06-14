@@ -1,11 +1,20 @@
 server:
   # Reconhece X-Forwarded-* do proxy reverso (HTTPS/HSTS corretos) — SEC-029.
   forward-headers-strategy: framework
+  # FIX-04 / SEC-032 — limite de tamanho de request (anti-abuso de recurso).
+  # Nossas requests JSON são pequenas (KB); cortar acima evita "billion-laughs".
+  tomcat:
+    max-http-form-post-size: 256KB
+    max-swallow-size: 256KB
   error:
     # Não vazar stack trace nem mensagem de exceção nas respostas de erro — SEC-007.
     include-stacktrace: never
     include-message: never
 spring:
+  servlet:
+    multipart:
+      max-request-size: 1MB
+      max-file-size: 1MB
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
   output:
@@ -13,6 +22,16 @@ spring:
           enabled: ALWAYS
   application:
       name: carimbai
+# FIX-15 / SEC-030 — CORS por profile. Base inclui localhost + PWA prod (útil
+# em dev/local); application-prod.yaml restringe ao PWA prod.
+app:
+  cors:
+    allowed-origins:
+      - https://carimbai-app.vercel.app
+      - http://localhost:5173
+      - http://localhost:5174
+      - http://localhost:3000
+      - http://localhost:1234
 carimbai:
   hmac-secret: ${CARIMBAI_HMAC_SECRET}
   stamps-needed: 10

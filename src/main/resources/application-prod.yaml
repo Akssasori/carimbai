@@ -7,11 +7,16 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: true
   datasource:
-    # Inclua ?sslmode=require na DB_URL quando o banco for remoto (SEC-013).
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
+    # FIX-14 (parcial) / SEC-013 — TLS obrigatório no DB em prod. Fail-closed:
+    # se o Postgres não aceitar TLS, a conexão falha (não cai pra plaintext).
+    # Override via env DB_SSL_MODE só se o DB estiver no mesmo host (loopback).
+    hikari:
+      data-source-properties:
+        sslmode: ${DB_SSL_MODE:require}
   jpa:
     hibernate:
       ddl-auto: none
@@ -32,6 +37,14 @@ logging:
   level:
     root: INFO
     org.hibernate.SQL: WARN
+
+# FIX-15 / SEC-030 — em prod só o PWA da Vercel pode chamar o backend (sem
+# localhost, sem previews). Para abrir um host adicional, sobrescreva por env:
+#   APP_CORS_ALLOWED_ORIGINS=https://carimbai-app.vercel.app,https://outro.com
+app:
+  cors:
+    allowed-origins:
+      - https://carimbai-app.vercel.app
 
 # NÃO declarar carimbai.jwt.secret / hmac-secret aqui: são herdados de
 # application.yaml (base), que exige a env SEM default. Assim, se

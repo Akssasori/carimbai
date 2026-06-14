@@ -237,14 +237,20 @@ detectados no backend.
   - `GET /api/cards/customer/{customerId}` é público e retorna a lista de cartões (lojista, programa, recompensa, progresso) de **qualquer** cliente, com `customerId` sequencial/enumerável.
 - **Impacto:** sem autenticar, um atacante: (a) descobre se um e-mail é cliente e lê seus dados; (b) **sobrescreve** telefone/e-mail/nome de um cliente existente; (c) enumera `customerId` e mapeia hábitos de consumo (quais lojas a pessoa frequenta) — exposição de dados pessoais em escala (risco LGPD relevante).
 - **Recomendação:** introduzir autenticação de cliente (sessão/JWT próprio após `social-login` ou OTP), escopar `/api/cards/**` e `/api/qr/**` ao dono autenticado, e tratar `login-or-register` como operação autenticada/idempotente que não sobrescreve dados de terceiros por e-mail. Validar na Fase 5/6.
-- **Status:** **Fechado para cartões/QR (FIX-02 Fases A+B+C)** — `GET /api/cards/**`
-  e `/api/qr/**` exigem `ROLE_CUSTOMER` e o service valida **posse** (`requireActiveCustomer`);
-  enroll (`POST /api/cards`) virou ação de staff escopada ao merchant. Testes
-  `CardServiceAuthzTest` (5), `./mvnw test` **39/39**. **Residual (Aberto):** o
-  `POST /api/customers/login-or-register` ainda reivindica/atualiza cliente por
-  e-mail sem auth — fechar exige onboarding **social-only** no PWA + remover/restringir
-  o endpoint. ⚠️ **Deploy:** a Fase C **quebra** clientes de login-light (sem token
-  → 403 nos cartões); o PWA precisa estar social-only **antes** de cortar em produção.
+- **Status:** ✅ **Fechado (FIX-02 Fases A+B+C+D)** — Fase C: `GET /api/cards/**`
+  e `/api/qr/**` exigem `ROLE_CUSTOMER` + posse via `requireActiveCustomer`;
+  enroll (`POST /api/cards`) virou ação de staff escopada ao merchant. **Fase D
+  (2026-06-14):** `POST /api/customers/login-or-register` sai do `permitAll`
+  e exige `@PreAuthorize("hasAnyAuthority('CASHIER','ADMIN','PLATFORM_ADMIN')")`
+  (`/api/customers/**` em `authenticated`); `POST /api/customers` restrito a
+  `PLATFORM_ADMIN`. PWA agora é **social-only** (formulário removido;
+  `loginOrRegister`/`loginOrRegisterCustomer` deletados; sessões antigas sem
+  token são descartadas no boot). Testes: `CardServiceAuthzTest` (5) +
+  `CustomerControllerAuthzTest` (2). `./mvnw test` **41/41**, frontend build/lint
+  limpos, screenshot confirma social-only. ⚠️ **Coordenação de deploy:** PWA
+  (Fase D) deve sair **antes** do corte de backend — chamadas legadas sem
+  Bearer no `login-or-register` agora respondem **401/403** (comportamento
+  desejado).
 
 ### SEC-002 — Emissão pública de tokens de selo (CUSTOMER_QR) para qualquer cartão
 - **Severidade:** Alta

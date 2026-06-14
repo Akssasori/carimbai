@@ -7,6 +7,8 @@ import com.app.carimbai.dtos.redeem.RedeemQrResponse;
 import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.repositories.CardRepository;
+import com.app.carimbai.security.audit.AuditEvent;
+import com.app.carimbai.security.audit.AuditService;
 import com.app.carimbai.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -24,6 +27,7 @@ public class CardService {
     private final ProgramService programService;
     private final CustomerService customerService;
     private final StampTokenService stampTokenService;
+    private final AuditService audit;
 
     @Value("${carimbai.stamps-needed:10}")
     private Integer defaultStampsNeeded;
@@ -79,7 +83,14 @@ public class CardService {
                     c.setProgram(program);
                     c.setCustomer(customer);
                     c.setStampsCount(0);
-                    return new CardResult(cardRepository.save(c), true);
+                    Card saved = cardRepository.save(c);
+                    audit.success(AuditEvent.CARD_ENROLL, Map.of(
+                            "cardId", saved.getId(),
+                            "programId", program.getId(),
+                            "merchantId", program.getMerchant().getId(),
+                            "customerId", customer.getId(),
+                            "staffId", SecurityUtils.getRequiredStaffUser().getId()));
+                    return new CardResult(saved, true);
                 });
     }
 

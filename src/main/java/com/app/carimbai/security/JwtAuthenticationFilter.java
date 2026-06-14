@@ -28,12 +28,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final StaffUserRepository staffRepo;
     private final CustomerRepository customerRepo;
+    private final TokenRevocationService revocationService;
 
     public JwtAuthenticationFilter(JwtService jwtService, StaffUserRepository staffRepo,
-                                   CustomerRepository customerRepo) {
+                                   CustomerRepository customerRepo,
+                                   TokenRevocationService revocationService) {
         this.jwtService = jwtService;
         this.staffRepo = staffRepo;
         this.customerRepo = customerRepo;
+        this.revocationService = revocationService;
     }
 
     @Override
@@ -48,7 +51,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = header.substring(7);
 
             try {
-                if (!jwtService.isExpired(token)) {
+                // FIX-11 / SEC-012 — denylist por jti (logout). isRevoked é "no-op" silencioso
+                // se o token não tiver jti (legado pré-FIX-11), o que naturalmente vira false.
+                if (!jwtService.isExpired(token) && !revocationService.isRevoked(jwtService.extractJti(token))) {
                     // Token de cliente (FIX-02): autentica como ROLE_CUSTOMER e NÃO o trata como staff.
                     if ("CUSTOMER".equals(jwtService.extractType(token))) {
                         Long customerId = jwtService.extractCustomerId(token);

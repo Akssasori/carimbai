@@ -6,6 +6,11 @@ import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.core.StaffUserMerchant;
 import com.app.carimbai.repositories.StaffUserMerchantRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
+import com.app.carimbai.security.PinLockedException;
+import com.app.carimbai.security.PinLockoutService;
+import com.app.carimbai.security.audit.AuditEvent;
+import com.app.carimbai.security.audit.AuditMask;
+import com.app.carimbai.security.audit.AuditService;
 import com.app.carimbai.utils.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +20,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
+
 @Service
 @RequiredArgsConstructor
 public class StaffService {
@@ -23,10 +30,21 @@ public class StaffService {
     private final StaffUserMerchantRepository staffMerchantRepository;
     private final BCryptPasswordEncoder encoder;
     private final MerchantService merchantService;
+    private final PinLockoutService pinLockoutService;
+    private final AuditService audit;
 
     public StaffUser validateCashierPin(Long cashierId, String pin) {
         if (cashierId == null || pin == null || pin.isBlank())
             throw new IllegalArgumentException("Missing cashierId or PIN");
+
+        // FIX-04 / SEC-017 — checa lockout antes do bcrypt (não vaza "user existe?"
+        // pelo tempo do hash; e evita custo de bcrypt em sequência de brute-force).
+        try {
+            pinLockoutService.assertNotLocked(cashierId);
+        } catch (PinLockedException ex) {
+            audit.event(AuditEvent.CASHIER_PIN_LOCKED, "DENIED", Map.of("staffId", cashierId));
+            throw ex;
+        }
 
         var user = staffUserRepository.findById(cashierId)
                 .orElseThrow(() -> new IllegalArgumentException("Cashier not found"));
@@ -35,9 +53,14 @@ public class StaffService {
             throw new IllegalArgumentException("Cashier not active/authorized");
 
         var pinHash = user.getPinHash();
-        if (pinHash == null || !encoder.matches(pin, pinHash))
+        if (pinHash == null || !encoder.matches(pin, pinHash)) {
+            pinLockoutService.recordFailure(cashierId);
+            audit.failure(AuditEvent.CASHIER_PIN_VALIDATE, Map.of("staffId", cashierId));
             throw new IllegalArgumentException("Invalid cashier PIN");
+        }
 
+        pinLockoutService.recordSuccess(cashierId);
+        audit.success(AuditEvent.CASHIER_PIN_VALIDATE, Map.of("staffId", cashierId));
         return user;
     }
 
@@ -52,10 +75,16 @@ public class StaffService {
 
         // O caixa alvo precisa pertencer ao merchant ativo do ADMIN (SEC-020).
         staffMerchantRepository.findByStaffUserIdAndMerchantIdAndActiveTrue(cashierId, activeMerchantId)
-                .orElseThrow(() -> new AccessDeniedException("Staff does not belong to the active merchant"));
+                .orElseThrow(() -> {
+                    audit.denied(AuditEvent.CASHIER_PIN_SET,
+                            Map.of("targetStaffId", cashierId, "activeMerchantId", activeMerchantId));
+                    return new AccessDeniedException("Staff does not belong to the active merchant");
+                });
 
         user.setPinHash(encoder.encode(rawPin));
         staffUserRepository.save(user);
+        audit.success(AuditEvent.CASHIER_PIN_SET,
+                Map.of("targetStaffId", cashierId, "merchantId", activeMerchantId));
     }
 
     @Transactional
@@ -86,6 +115,11 @@ public class StaffService {
 
         staffMerchantRepository.save(link);
 
+        audit.success(AuditEvent.STAFF_USER_CREATE, Map.of(
+                "newStaffId", staffUser.getId(),
+                "email", AuditMask.email(staffUser.getEmail()),
+                "merchantId", request.merchantId(),
+                "role", request.role().name()));
         return staffUser;
     }
 }

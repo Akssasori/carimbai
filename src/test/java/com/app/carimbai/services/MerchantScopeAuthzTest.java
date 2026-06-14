@@ -6,6 +6,8 @@ import com.app.carimbai.enums.StaffRole;
 import com.app.carimbai.repositories.ProgramRepository;
 import com.app.carimbai.repositories.StaffUserMerchantRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
+import com.app.carimbai.security.PinLockoutService;
+import com.app.carimbai.security.audit.AuditService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
@@ -66,7 +68,8 @@ class MerchantScopeAuthzTest {
         StaffUserMerchantRepository linkRepo = mock(StaffUserMerchantRepository.class);
         BCryptPasswordEncoder encoder = mock(BCryptPasswordEncoder.class);
         MerchantService merchantService = mock(MerchantService.class);
-        StaffService service = new StaffService(staffRepo, linkRepo, encoder, merchantService);
+        StaffService service = new StaffService(staffRepo, linkRepo, encoder, merchantService,
+                mock(PinLockoutService.class), mock(AuditService.class));
 
         setActiveMerchant(1L);
         var req = new CreateStaffUserRequest(2L, "novo@x.com", "senhaforte123", StaffRole.CASHIER);

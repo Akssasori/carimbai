@@ -6,6 +6,7 @@ import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.models.fidelity.Customer;
 import com.app.carimbai.models.fidelity.Program;
 import com.app.carimbai.repositories.CardRepository;
+import com.app.carimbai.security.audit.AuditService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,7 +43,7 @@ class CardServiceAuthzTest {
         programService = mock(ProgramService.class);
         customerService = mock(CustomerService.class);
         stampTokenService = mock(StampTokenService.class);
-        service = new CardService(cardRepo, programService, customerService, stampTokenService);
+        service = new CardService(cardRepo, programService, customerService, stampTokenService, mock(AuditService.class));
     }
 
     @AfterEach

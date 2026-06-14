@@ -121,13 +121,45 @@ Ao versionar as correções, o `git diff` revelou que as Fases 1–12 analisaram
 | Achado | Ação aplicada | Arquivo(s) | Reteste | Status |
 |---|---|---|---|---|
 | SEC-001/002/004 | `GET /api/cards/**` e `/api/qr/**` exigem `ROLE_CUSTOMER` (`SecurityConfig`); `CardService` valida **posse** (`requireActiveCustomer`) em `getCustomerCards`, `generateCustomerQr`, `generateRedeemQr`; **enroll** (`POST /api/cards`) → staff `CASHIER/ADMIN` escopado ao merchant | `SecurityConfig`, `SecurityUtils`, `CardService`, `QrCodeController`, `CardsController` | **Testes** `CardServiceAuthzTest` (5): cliente A não lê cartões/QR de B; enroll cross-merchant negado. `./mvnw test` **39/39**. | **Fechado** (cartões/QR) |
-| SEC-001 (residual) | `login-or-register` por e-mail ainda reivindica/atualiza cliente sem auth | — | — | **Aberto** — fechar com onboarding social-only no PWA + remover/restringir o endpoint |
+| SEC-001 (residual) | `login-or-register` por e-mail ainda reivindica/atualiza cliente sem auth | — | — | **Fechado** na Fase D (ver §2-septies) |
 
 > ⚠️ **Coordenação de deploy (crítico):** a Fase C **quebra** clientes de
 > login-light (sem token → **403** ao carregar cartões). O PWA precisa estar
 > **social-only** (onboarding sem o formulário de e-mail) **antes** de a Fase C ir
 > a produção. Sequência segura: deploy da Fase B (PWA manda Bearer) → PWA
 > social-only → **então** deploy da Fase C (backend).
+
+## 2-septies. FIX-02 Fase D (fecha o resíduo do SEC-001)
+
+| Achado | Ação aplicada | Arquivo(s) | Reteste | Status |
+|---|---|---|---|---|
+| SEC-001 (resíduo `login-or-register`) | **Backend:** `POST /api/customers/login-or-register` sai do `permitAll` e exige staff (`@PreAuthorize("hasAnyAuthority('CASHIER','ADMIN','PLATFORM_ADMIN')")` + `/api/customers/**` em `authenticated`); `POST /api/customers` restrito a `PLATFORM_ADMIN`. **Frontend:** `CustomerOnboarding` é **social-only** (form e-mail/nome/telefone removido); `useCustomer.loginOrRegister` e `apiService.loginOrRegisterCustomer` removidos; sessões antigas sem token são descartadas no boot. | `SecurityConfig.java`, `CustomerController.java`, `carimbai-app/src/components/CustomerLogin.tsx`, `services/api.ts`, `hooks/useCustomer.ts`, `App.tsx`, `types/index.ts` | **Backend:** `CustomerControllerAuthzTest` (2) — `createCustomer` exige `PLATFORM_ADMIN`; `loginOrRegister` exige `CASHIER/ADMIN`. `./mvnw test` **41/41**. **Frontend:** `npm run build` ✅, `npm run lint` 0 erros, **screenshot 5174** mostra a tela social-only sem o formulário de e-mail. | **Fechado** |
+
+> Coordenação de deploy permanece: **Fase D no PWA antes** do corte da Fase C em
+> produção (caso contrário login-light em cache vira 403). Após a sequência:
+> SEC-001/002/004 **totalmente fechados**.
+
+## 2-octies. FIX-15 (CORS por profile) + FIX-04 (rate limit + PIN lockout)
+
+| Achado | Ação aplicada | Arquivo(s) | Reteste | Status |
+|---|---|---|---|---|
+| SEC-030 | **FIX-15** — `app.cors.allowed-origins` (lista) injetada por `@Value`; base inclui localhost + Vercel (dev/local), `application-prod.yaml` restringe a `https://carimbai-app.vercel.app`. Override por env `APP_CORS_ALLOWED_ORIGINS` (CSV). | `SecurityConfig.java`, `application.yaml`, `application-prod.yaml` | Inspeção: `setAllowedOriginPatterns(allowedOrigins)`; em prod a lista tem 1 item. Compilação OK. | **Fechado (estático)** — verificação dinâmica em produção depende de FIX-01 (perfil prod ativo) |
+| SEC-006 | **FIX-04 (rate limit)** — `RateLimitFilter` (Bucket4j in-memory) registrado antes do JWT: login 10/min, social-login 10/min, login-or-register 10/min, enroll 30/min, qr 60/min, redeem-qr 60/min (por IP). 429 + `Retry-After` em estouro. | `RateLimitFilter.java`, `pom.xml`, `SecurityConfig.java` | `RateLimitFilterTest` (3): 11ª chamada em login → 429; IPs distintos têm buckets separados; path fora das regras passa. | **Fechado** (multi-nó futuro → migrar para Redis) |
+| SEC-017 (brute-force) | **FIX-04 (PIN lockout)** — `PinLockoutService` in-memory: 5 erros em 10min → bloqueia 15min; acerto reseta. Aplicado em `StaffService.validateCashierPin` antes do bcrypt. 423 + `Retry-After` via handler. | `PinLockoutService.java`, `PinLockedException.java`, `StaffService.java`, `GlobalExceptionHandler.java` | `PinLockoutServiceTest` (5) + `StaffServiceLockoutTest` (2): 5 falhas seguidas bloqueiam; sucesso reseta a contagem. | **Fechado** |
+| SEC-032 | **FIX-04 (request size)** — Tomcat `max-http-form-post-size: 256KB`, `max-swallow-size: 256KB`, multipart `1MB`. | `application.yaml` | Inspeção: config presente. | **Fechado (estático)** — dinâmico via load test/DAST |
+
+> `./mvnw test` final: **51/51 verde**. Dependência nova: `com.bucket4j:bucket4j-core:8.10.1` (in-memory, sem Redis).
+
+## 2-nonies. FIX-14 (sslmode) + FIX-10 (auditoria/logback) + FIX-11 (JWT hardening + logout) + FIX-12 (CSP + logout)
+
+| Achado | Ação aplicada | Arquivo(s) | Reteste | Status |
+|---|---|---|---|---|
+| SEC-013 (parcial) | **FIX-14 (sslmode)** — Hikari `data-source-properties.sslmode: ${DB_SSL_MODE:require}` em prod (fail-closed; override para loopback). | `application-prod.yaml` | Inspeção: prop presente. Cripto de `document` em repouso segue pendente. | **Parcial** |
+| SEC-026/027 | **FIX-10 (auditoria/logback)** — `AuditService` + `AuditEvent` + `AuditMask` (e-mail/doc mascarados); eventos plugados em `STAFF_LOGIN` (OK/FAIL), `STAFF_SWITCH_MERCHANT`, `CUSTOMER_SOCIAL_LOGIN` (OK/FAIL), `CUSTOMER_LOGIN_OR_REGISTER`, `CASHIER_PIN_VALIDATE` (OK/FAIL), `CASHIER_PIN_LOCKED`, `CASHIER_PIN_SET`, `REDEEM`, `CARD_ENROLL`, `MERCHANT_CREATE`, `STAFF_USER_CREATE`, `ACCESS_DENIED` (central via handler). `logback-spring.xml` separa `audit.log` (180d / 5GB) de `application.log` (14d / 1GB) com rotação diária+tamanho — só no profile `prod`. | `AuditService.java`, `AuditEvent.java`, `AuditMask.java`, `logback-spring.xml`, `AuthService.java`, `UserRegistrationFacade.java`, `StaffService.java`, `RedeemService.java`, `CardService.java`, `MerchantService.java`, `GlobalExceptionHandler.java` | `AuditMaskTest` (5). Eventos verificados por inspeção e via wiring nos testes existentes. | **Fechado** |
+| SEC-012 | **FIX-11 (JWT hardening)** — todos os tokens agora têm `iss=carimbai`, `aud=carimbai:staff` ou `carimbai:customer`, `jti` (UUID); `parseToken` exige issuer (token sem `iss` ou com outro emissor → `JwtException`). **Logout:** `POST /api/auth/logout` (permitAll, idempotente) revoga o `jti` corrente em `TokenRevocationService` (in-memory, GC preguiçoso); filtro consulta a denylist antes de autenticar. | `JwtService.java`, `TokenRevocationService.java`, `JwtAuthenticationFilter.java`, `AuthController.java`, `SecurityConfig.java` | `JwtServiceTest` (+3: `jti/iss/aud` staff, `jti/iss/aud` cliente, rejeição de issuer errado), `TokenRevocationServiceTest` (4: denylist semântica), `JwtAuthenticationFilterTest` (+1: token revogado não autentica). | **Fechado (backend)** |
+| SEC-023/024/025 | **FIX-12 (frontend)** — `vercel.json` com **CSP** restrita (`default-src 'self'`; script-src só `'self'` + Google/Facebook; `object-src 'none'`; `frame-ancestors 'none'`; etc.) + HSTS + `X-Content-Type-Options` + `X-Frame-Options: DENY` + `Referrer-Policy: no-referrer` + `Permissions-Policy` restritiva. **Logout:** `apiService.logout(token)` revoga no backend em `useCustomer.logout()` (customer) e `handleLogout()` (staff). | `carimbai-app/vercel.json`, `services/api.ts`, `hooks/useCustomer.ts`, `components/StaffScreen.tsx` | `npm run build` ✅, `npm run lint` 0 erros, screenshot do `CustomerOnboarding` confirma render OK (CSP só vale em prod na Vercel). | **Parcial** (JWT segue em `localStorage` — migração para cookie httpOnly + CSRF adiada por UX) |
+
+> `./mvnw test` final: **64/64 verde**.
 
 ## 3. Achados que permanecem ABERTOS (sem correção nesta rodada)
 
@@ -150,7 +182,7 @@ Por exigirem proposta/design ou mudança grande (ver `SECURITY_FIX_PLAN.md`):
 
 | Resultado | Qtde | Achados |
 |---|---|---|
-| **Fechado** | 12 | **SEC-001/002/004 (cartões/QR, FIX-02 A+B+C)**, SEC-014, SEC-015, SEC-016, SEC-017(formato+cross-tenant), **SEC-020 (completo)**, **SEC-034 (bypass do PIN)**, SEC-023(backend), SEC-035, + SEC-005/011 no `prod` |
+| **Fechado** | 20 | **SEC-001/002/004 (FIX-02 A+B+C+D)**, SEC-014, SEC-015, SEC-016, SEC-017 (formato+cross-tenant+**brute-force**), **SEC-020 (completo)**, **SEC-034 (bypass do PIN)**, SEC-023(backend), SEC-035, **SEC-006 (rate limit)**, **SEC-008 (login anti-enum)**, **SEC-030 (CORS prod)**, **SEC-032 (req size)**, **SEC-026/027 (auditoria + retenção)**, **SEC-012 (JWT hardening + logout)**, + SEC-005/011 no `prod` |
 | **Parcial** | 4 | SEC-003, SEC-007, SEC-022, SEC-029, SEC-028 |
 | **Aberto** (sem correção) | restante | ver §3 (inclui SEC-001/002/004/034 + createMerchant) |
 

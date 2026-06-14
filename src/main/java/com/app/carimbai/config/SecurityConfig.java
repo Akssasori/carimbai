@@ -3,7 +3,10 @@ package com.app.carimbai.config;
 import com.app.carimbai.repositories.CustomerRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
 import com.app.carimbai.security.JwtAuthenticationFilter;
+import com.app.carimbai.security.RateLimitFilter;
+import com.app.carimbai.security.TokenRevocationService;
 import com.app.carimbai.services.JwtService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -28,18 +31,28 @@ public class SecurityConfig {
     private final JwtService jwtService;
     private final StaffUserRepository staffUserRepository;
     private final CustomerRepository customerRepository;
+    private final RateLimitFilter rateLimitFilter;
+    private final TokenRevocationService revocationService;
+    private final List<String> allowedOrigins;
 
     public SecurityConfig(JwtService jwtService, StaffUserRepository staffUserRepository,
-                          CustomerRepository customerRepository) {
+                          CustomerRepository customerRepository,
+                          RateLimitFilter rateLimitFilter,
+                          TokenRevocationService revocationService,
+                          @Value("${app.cors.allowed-origins}") List<String> allowedOrigins) {
         this.jwtService = jwtService;
         this.staffUserRepository = staffUserRepository;
         this.customerRepository = customerRepository;
+        this.rateLimitFilter = rateLimitFilter;
+        this.revocationService = revocationService;
+        this.allowedOrigins = allowedOrigins;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtService, staffUserRepository, customerRepository);
+        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(
+                jwtService, staffUserRepository, customerRepository, revocationService);
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -55,7 +68,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/login",
-                                "/api/customers/login-or-register",
+                                // FIX-11: logout aceita token expirado/inválido (idempotente, 204).
+                                "/api/auth/logout",
                                 "/api/customers/social-login",
                                 "/api/staff/login",
                                 "/v3/api-docs/**",
@@ -78,11 +92,17 @@ public class SecurityConfig {
                                 "/api/redeem/**",
                                 "/api/admin/**",
                                 "/api/merchants/**",
-                                "/api/staff-users/**"
+                                "/api/staff-users/**",
+                                // FIX-02 Fase D — /api/customers/** deixa de ser self-service:
+                                // createCustomer → PLATFORM_ADMIN; login-or-register → staff (CASHIER/ADMIN/PLATFORM_ADMIN).
+                                // Papéis impostos por @PreAuthorize no CustomerController. social-login segue público acima.
+                                "/api/customers/**"
                         ).authenticated()
 
                         .anyRequest().denyAll()
                 )
+                // FIX-04 — rate limit por IP/endpoint ANTES da auth (brute-force em /login).
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -92,12 +112,10 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOriginPatterns(List.of(
-                "https://carimbai-app.vercel.app",
-                "http://localhost:5173",
-                "http://localhost:3000",
-                "http://localhost:1234"
-        ));
+        // FIX-15 / SEC-030 — origens vêm da config por profile:
+        //  - prod (application-prod.yaml): só o PWA da Vercel.
+        //  - dev/local (application.yaml base): localhost + Vercel para conveniência.
+        config.setAllowedOriginPatterns(allowedOrigins);
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 

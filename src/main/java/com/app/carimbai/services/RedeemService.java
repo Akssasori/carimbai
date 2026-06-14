@@ -11,6 +11,8 @@ import com.app.carimbai.models.fidelity.Reward;
 import com.app.carimbai.repositories.CardRepository;
 import com.app.carimbai.repositories.LocationRepository;
 import com.app.carimbai.repositories.RewardRepository;
+import com.app.carimbai.security.audit.AuditEvent;
+import com.app.carimbai.security.audit.AuditService;
 import com.app.carimbai.utils.SecurityUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,6 +22,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -33,6 +36,7 @@ public class RedeemService {
     private final StaffService staffService;
     private final ObjectMapper objectMapper;
     private final StampTokenService stampTokenService;
+    private final AuditService audit;
 
     @Value("${carimbai.stamps-needed:10}")
     private Integer defaultStampsNeeded;
@@ -121,6 +125,14 @@ public class RedeemService {
         card.setStampsCount(0);
         card.setStatus(CardStatus.ACTIVE);
         cardRepo.save(card);
+
+        audit.success(AuditEvent.REDEEM, Map.of(
+                "rewardId", reward.getId(),
+                "cardId", card.getId(),
+                "programId", program.getId(),
+                "merchantId", activeMerchantId,
+                "staffId", staffUser.getId(),
+                "withRedeemQr", redeemRequest.redeemQr() != null));
 
         return new RedeemResponse(true,
                 reward.getId(),

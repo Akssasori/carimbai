@@ -101,6 +101,49 @@ class JwtServiceTest {
     }
 
     @Test
+    void staffToken_hasJti_iss_audStaff() {
+        JwtService s = newService(3600L);
+        StaffUserMerchant l = link(1L, 1L, StaffRole.ADMIN);
+        String token = s.generateToken(l.getStaffUser(), l);
+
+        var claims = s.parseToken(token).getPayload();
+        assertThat(claims.getId()).isNotBlank();                 // jti
+        assertThat(claims.getIssuer()).isEqualTo(JwtService.ISSUER);
+        assertThat(claims.getAudience()).contains(JwtService.AUDIENCE_STAFF);
+        assertThat(s.extractJti(token)).isEqualTo(claims.getId());
+    }
+
+    @Test
+    void customerToken_hasJti_iss_audCustomer() {
+        JwtService s = newService(3600L);
+        Customer c = Customer.builder().id(42L).email("c@x.com").build();
+        String token = s.generateCustomerToken(c);
+
+        var claims = s.parseToken(token).getPayload();
+        assertThat(claims.getId()).isNotBlank();
+        assertThat(claims.getIssuer()).isEqualTo(JwtService.ISSUER);
+        assertThat(claims.getAudience()).contains(JwtService.AUDIENCE_CUSTOMER);
+    }
+
+    @Test
+    void rejectsTokenWithWrongIssuer() {
+        // FIX-11: token assinado com a mesma chave mas iss diferente é rejeitado.
+        JwtService s = newService(3600L);
+        String secret = (String) ReflectionTestUtils.getField(s, "secret");
+        javax.crypto.SecretKey key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(
+                secret.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String forged = io.jsonwebtoken.Jwts.builder()
+                .subject("1")
+                .issuer("other-issuer")
+                .id(java.util.UUID.randomUUID().toString())
+                .issuedAt(new java.util.Date())
+                .expiration(new java.util.Date(System.currentTimeMillis() + 60000))
+                .signWith(key)
+                .compact();
+        assertThatThrownBy(() -> s.parseToken(forged)).isInstanceOf(JwtException.class);
+    }
+
+    @Test
     void rejectsAlgNoneUnsignedToken() {
         JwtService s = newService(3600L);
         Base64.Encoder enc = Base64.getUrlEncoder().withoutPadding();

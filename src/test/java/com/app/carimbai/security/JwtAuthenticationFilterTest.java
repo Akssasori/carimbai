@@ -29,6 +29,7 @@ class JwtAuthenticationFilterTest {
     private JwtService jwt;
     private StaffUserRepository staffRepo;
     private CustomerRepository customerRepo;
+    private TokenRevocationService revocation;
     private JwtAuthenticationFilter filter;
 
     @BeforeEach
@@ -36,8 +37,10 @@ class JwtAuthenticationFilterTest {
         jwt = mock(JwtService.class);
         staffRepo = mock(StaffUserRepository.class);
         customerRepo = mock(CustomerRepository.class);
-        filter = new JwtAuthenticationFilter(jwt, staffRepo, customerRepo);
+        revocation = new TokenRevocationService(); // real — sem entradas
+        filter = new JwtAuthenticationFilter(jwt, staffRepo, customerRepo, revocation);
         when(jwt.isExpired("tok")).thenReturn(false);
+        when(jwt.extractJti("tok")).thenReturn("jti-1");
     }
 
     @AfterEach
@@ -83,6 +86,19 @@ class JwtAuthenticationFilterTest {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         assertThat(auth.getAuthorities()).noneMatch(a -> a.getAuthority().equals("PLATFORM_ADMIN"));
         assertThat(auth.getAuthorities()).anyMatch(a -> a.getAuthority().equals("ADMIN"));
+    }
+
+    @Test
+    void revokedToken_isNotAuthenticated() throws Exception {
+        // FIX-11 / SEC-012: depois de revogar, mesmo token válido não autentica.
+        revocation.revoke("jti-1", java.time.Instant.now().plusSeconds(3600));
+        stubStaff(StaffUser.builder().id(1L).email("p@x.com").active(true).platformAdmin(false).build());
+
+        runFilter();
+
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        assertThat(auth).isNull();
+        verifyNoInteractions(staffRepo); // nem chegou a buscar o usuário
     }
 
     @Test
