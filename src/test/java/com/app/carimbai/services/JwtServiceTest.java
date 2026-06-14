@@ -4,6 +4,7 @@ import com.app.carimbai.enums.StaffRole;
 import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.core.StaffUserMerchant;
+import com.app.carimbai.models.fidelity.Customer;
 import io.jsonwebtoken.JwtException;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -25,6 +26,7 @@ class JwtServiceTest {
         JwtService s = new JwtService();
         ReflectionTestUtils.setField(s, "secret", "test-secret-0123456789-0123456789-abcdef");
         ReflectionTestUtils.setField(s, "expirationSeconds", expirationSeconds);
+        ReflectionTestUtils.setField(s, "customerExpirationSeconds", 3600L);
         s.init();
         return s;
     }
@@ -74,6 +76,28 @@ class JwtServiceTest {
         String tampered = token.substring(0, dot + 1) + replaced + sig.substring(1);
 
         assertThatThrownBy(() -> s.parseToken(tampered)).isInstanceOf(JwtException.class);
+    }
+
+    @Test
+    void customerToken_hasCustomerTypeAndSubject() {
+        JwtService s = newService(3600L);
+        Customer c = Customer.builder().id(42L).email("c@x.com").build();
+
+        String token = s.generateCustomerToken(c);
+
+        assertThat(s.extractType(token)).isEqualTo("CUSTOMER");
+        assertThat(s.extractCustomerId(token)).isEqualTo(42L);
+        assertThat(s.isExpired(token)).isFalse();
+    }
+
+    @Test
+    void staffToken_hasNoType() {
+        JwtService s = newService(3600L);
+        StaffUserMerchant l = link(1L, 1L, StaffRole.ADMIN);
+
+        String token = s.generateToken(l.getStaffUser(), l);
+
+        assertThat(s.extractType(token)).isNull(); // distingue de token de cliente
     }
 
     @Test

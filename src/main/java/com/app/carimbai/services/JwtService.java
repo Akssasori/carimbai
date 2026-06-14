@@ -2,6 +2,7 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.core.StaffUserMerchant;
+import com.app.carimbai.models.fidelity.Customer;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
@@ -30,6 +31,10 @@ public class JwtService {
     @Value("${carimbai.jwt.expiration-seconds:28800}")
     private long expirationSeconds;
 
+    // Sessão de cliente é longa (app de fidelidade, uso esporádico). Default 30 dias.
+    @Value("${carimbai.jwt.customer-expiration-seconds:2592000}")
+    private long customerExpirationSeconds;
+
     @PostConstruct
     public void init() {
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
@@ -48,6 +53,28 @@ public class JwtService {
                 .claim("email", user.getEmail())
                 .signWith(signingKey)
                 .compact();
+    }
+
+    /** Token de CLIENTE (FIX-02, Fase A): sub = customerId, claim type=CUSTOMER. */
+    public String generateCustomerToken(Customer customer) {
+        Instant now = Instant.now();
+        Instant exp = now.plusSeconds(customerExpirationSeconds);
+        return Jwts.builder()
+                .subject(customer.getId().toString())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(exp))
+                .claim("type", "CUSTOMER")
+                .signWith(signingKey)
+                .compact();
+    }
+
+    /** Tipo do token: "CUSTOMER" para cliente; null para tokens de staff (legado). */
+    public String extractType(String token) {
+        return parseToken(token).getPayload().get("type", String.class);
+    }
+
+    public Long extractCustomerId(String token) {
+        return Long.parseLong(parseToken(token).getPayload().getSubject());
     }
 
     public Jws<Claims> parseToken(String token) {

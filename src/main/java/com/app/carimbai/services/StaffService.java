@@ -6,9 +6,11 @@ import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.core.StaffUserMerchant;
 import com.app.carimbai.repositories.StaffUserMerchantRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
+import com.app.carimbai.utils.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,8 +45,14 @@ public class StaffService {
         if (rawPin == null || rawPin.length() < 4 || rawPin.length() > 10)
             throw new IllegalArgumentException("PIN must be 4..10 digits");
 
+        Long activeMerchantId = SecurityUtils.getActiveMerchantId();
+
         var user = staffUserRepository.findById(cashierId)
                 .orElseThrow(() -> new IllegalArgumentException("Cashier not found"));
+
+        // O caixa alvo precisa pertencer ao merchant ativo do ADMIN (SEC-020).
+        staffMerchantRepository.findByStaffUserIdAndMerchantIdAndActiveTrue(cashierId, activeMerchantId)
+                .orElseThrow(() -> new AccessDeniedException("Staff does not belong to the active merchant"));
 
         user.setPinHash(encoder.encode(rawPin));
         staffUserRepository.save(user);
@@ -53,6 +61,7 @@ public class StaffService {
     @Transactional
     public StaffUser createStaffUser(@Valid CreateStaffUserRequest request) {
 
+        SecurityUtils.requireActiveMerchant(request.merchantId()); // SEC-020
         Merchant merchant = merchantService.findById(request.merchantId());
 
         var staffUser = StaffUser.builder()

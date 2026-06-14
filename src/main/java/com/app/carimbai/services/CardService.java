@@ -7,6 +7,7 @@ import com.app.carimbai.dtos.redeem.RedeemQrResponse;
 import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.repositories.CardRepository;
+import com.app.carimbai.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class CardService {
 
     @Transactional(readOnly = true)
     public CardListResponse getCustomerCards(Long customerId) {
+        SecurityUtils.requireActiveCustomer(customerId); // SEC-001: só os próprios cartões
         List<Card> cards = cardRepository.findByCustomerIdWithProgram(customerId);
         
         List<CardItemDto> cardDtos = cards.stream()
@@ -66,6 +68,8 @@ public class CardService {
     public CardResult getOrCreateCard(Long programId, Long customerId) {
 
         var program = programService.findById(programId);
+        // enroll é ação de staff: só inscreve em programa do seu próprio merchant (SEC-020).
+        SecurityUtils.requireActiveMerchant(program.getMerchant().getId());
         var customer = customerService.findById(customerId);
 
         return cardRepository.findByProgramIdAndCustomerId(program.getId(), customer.getId())
@@ -87,9 +91,20 @@ public class CardService {
         return cardRepository.save(card);
     }
 
+    /** QR de selo do cliente — exige que o cartão seja do cliente autenticado (SEC-001/002). */
+    @Transactional(readOnly = true)
+    public QrTokenResponse generateCustomerQr(Long cardId) {
+        Card card = cardRepository.findById(cardId)
+                .orElseThrow(() -> new IllegalArgumentException("Card not found: " + cardId));
+        SecurityUtils.requireActiveCustomer(card.getCustomer().getId());
+        return stampTokenService.generateQrCustomer(cardId);
+    }
+
+    @Transactional(readOnly = true)
     public RedeemQrResponse generateRedeemQr(Long cardId) {
         Card card = cardRepository.findById(cardId)
                 .orElseThrow(() -> new IllegalArgumentException("Card not found: " + cardId));
+        SecurityUtils.requireActiveCustomer(card.getCustomer().getId()); // SEC-001/004
         if (card.getStatus() != CardStatus.READY_TO_REDEEM) {
             throw new IllegalArgumentException("Card status is not READY_TO_REDEEM");
         }

@@ -1,0 +1,39 @@
+server:
+  port: 1234
+spring:
+  flyway:
+    enabled: true
+    locations: classpath:db.migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+  datasource:
+    # Inclua ?sslmode=require na DB_URL quando o banco for remoto (SEC-013).
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false            # SEC-011
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+# Swagger/OpenAPI desligados em produção (SEC-005).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    root: INFO
+    org.hibernate.SQL: WARN
+
+# NÃO declarar carimbai.jwt.secret / hmac-secret aqui: são herdados de
+# application.yaml (base), que exige a env SEM default. Assim, se
+# CARIMBAI_JWT_SECRET / CARIMBAI_HMAC_SECRET faltarem, a app FALHA ao subir
+# (fail-closed) — SEC-003/028.

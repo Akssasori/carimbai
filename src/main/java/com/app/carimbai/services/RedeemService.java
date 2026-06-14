@@ -44,6 +44,7 @@ public class RedeemService {
         Long activeMerchantId = SecurityUtils.getActiveMerchantId();
 
         Location location = null;
+        boolean requirePin = true; // fail-safe: exige PIN por padrão (SEC-034)
         if (redeemRequest.locationId() != null) {
             location = locationRepo.findById(redeemRequest.locationId())
                     .orElseThrow(() -> new IllegalArgumentException("Location not found: " + redeemRequest.locationId()));
@@ -52,16 +53,18 @@ public class RedeemService {
                 throw new IllegalArgumentException("Location does not belong to staff merchant");
             }
 
-            // lê flags.requirePinOnRedeem (default true)
-            boolean requirePin = isRequirePinOnRedeem(location);
+            // a localização pode optar por não exigir PIN (flags.requirePinOnRedeem, default true)
+            requirePin = isRequirePinOnRedeem(location);
+        }
 
-            if (requirePin) {
-                if (cashierPin == null || cashierPin.isBlank()) {
-                    throw new IllegalArgumentException("Cashier PIN is required for redeem");
-                }
-                // valida PIN do próprio staff logado
-                staffService.validateCashierPin(staffUser.getId(), cashierPin);
+        // PIN avaliado SEMPRE, independentemente de locationId — fecha o bypass do SEC-034
+        // (omitir locationId não pode mais pular o segundo fator).
+        if (requirePin) {
+            if (cashierPin == null || cashierPin.isBlank()) {
+                throw new IllegalArgumentException("Cashier PIN is required for redeem");
             }
+            // valida o PIN do próprio staff logado
+            staffService.validateCashierPin(staffUser.getId(), cashierPin);
         }
 
         Long cardId = (redeemRequest.redeemQr() != null) ? redeemRequest.redeemQr().cardId() : redeemRequest.cardId();

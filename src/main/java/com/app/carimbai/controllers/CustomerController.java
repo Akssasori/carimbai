@@ -5,6 +5,7 @@ import com.app.carimbai.dtos.admin.CreateCustomerResponse;
 import com.app.carimbai.dtos.customer.CustomerLoginRequest;
 import com.app.carimbai.dtos.customer.CustomerLoginResponse;
 import com.app.carimbai.dtos.customer.SocialLoginRequest;
+import com.app.carimbai.facade.CustomerSession;
 import com.app.carimbai.facade.UserRegistrationFacade;
 import com.app.carimbai.mappers.CustomerMapper;
 import com.app.carimbai.services.CustomerService;
@@ -49,6 +50,8 @@ public class CustomerController {
             description = "Logs in or registers a customer via Google, Apple or Facebook token.")
     @PostMapping("/social-login")
     public ResponseEntity<CustomerLoginResponse> socialLogin(@Valid @RequestBody SocialLoginRequest request) {
-        return ResponseEntity.ok(customerMapper.customerToCustomerLoginResponse(userRegistrationFacade.socialLogin(request)));
+        CustomerSession session = userRegistrationFacade.socialLogin(request);
+        return ResponseEntity.ok(
+                customerMapper.customerToCustomerLoginResponse(session.customer(), session.token()));
     }
 }

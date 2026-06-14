@@ -1,7 +1,7 @@
 package com.app.carimbai.controllers;
 
 import com.app.carimbai.dtos.QrTokenResponse;
-import com.app.carimbai.services.StampTokenService;
+import com.app.carimbai.services.CardService;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -15,13 +15,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class QrCodeController {
 
-    private final StampTokenService tokenService;
+    private final CardService cardService;
 
     @Operation(summary = "Emite o QR do cliente (gera o token).", description = "Gera o token efêmero (que você " +
             "renderiza como QR) do cliente. — Quem chama: PWA do cliente (tela \"Meu Cartão\")." +
-            "— Uso: mostrar o QR na tela para o caixa escanear (Opção A).")
+            "— Uso: mostrar o QR na tela para o caixa escanear (Opção A). Exige cliente autenticado dono do cartão.")
     @GetMapping("/{id}")
     public ResponseEntity<QrTokenResponse> qr(@PathVariable Long id) {
-        return ResponseEntity.ok(tokenService.generateQrCustomer(id));
+        return ResponseEntity.ok(cardService.generateCustomerQr(id));
     }
 }

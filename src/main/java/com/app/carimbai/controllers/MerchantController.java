@@ -43,9 +43,10 @@ public class MerchantController {
     private final MerchantService merchantService;
     private final MerchantMapper merchantMapper;
 
-    @PreAuthorize("hasAuthority('ADMIN')")
+    // Onboarding de lojista é ação de plataforma, não de um ADMIN de merchant (SEC-020).
+    @PreAuthorize("hasAuthority('PLATFORM_ADMIN')")
     @Operation( summary = "Create a new merchant",
-            description = "Creates a new merchant with the provided details.")
+            description = "Creates a new merchant with the provided details. Requires PLATFORM_ADMIN.")
     @PostMapping
     public ResponseEntity<CreateMerchantResponse> createMerchant(@Valid @RequestBody CreateMerchantRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(merchantMapper

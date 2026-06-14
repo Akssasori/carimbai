@@ -1,5 +1,6 @@
 package com.app.carimbai.config;
 
+import com.app.carimbai.repositories.CustomerRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
 import com.app.carimbai.security.JwtAuthenticationFilter;
 import com.app.carimbai.services.JwtService;
@@ -26,16 +27,19 @@ public class SecurityConfig {
 
     private final JwtService jwtService;
     private final StaffUserRepository staffUserRepository;
+    private final CustomerRepository customerRepository;
 
-    public SecurityConfig(JwtService jwtService, StaffUserRepository staffUserRepository) {
+    public SecurityConfig(JwtService jwtService, StaffUserRepository staffUserRepository,
+                          CustomerRepository customerRepository) {
         this.jwtService = jwtService;
         this.staffUserRepository = staffUserRepository;
+        this.customerRepository = customerRepository;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtService, staffUserRepository);
+        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtService, staffUserRepository, customerRepository);
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -61,8 +65,11 @@ public class SecurityConfig {
                                 "/error"
                         ).permitAll()
 
-                        .requestMatchers("/api/cards/**").permitAll()
-                        .requestMatchers("/api/qr/**").permitAll()
+                        // Enroll = ação de staff (escopo no service + @PreAuthorize no controller). FIX-02 Fase C.
+                        .requestMatchers(HttpMethod.POST, "/api/cards").authenticated()
+                        // Leitura de cartões e QRs = cliente autenticado; posse validada no service (SEC-001).
+                        .requestMatchers(HttpMethod.GET, "/api/cards/**").hasRole("CUSTOMER")
+                        .requestMatchers("/api/qr/**").hasRole("CUSTOMER")
                         .requestMatchers(HttpMethod.GET, "/api/merchants/*/programs").permitAll()
 
                         .requestMatchers(

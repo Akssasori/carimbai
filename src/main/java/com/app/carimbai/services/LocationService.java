@@ -4,6 +4,7 @@ import com.app.carimbai.dtos.admin.CreateLocationRequest;
 import com.app.carimbai.models.core.Location;
 import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.repositories.LocationRepository;
+import com.app.carimbai.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +17,7 @@ public class LocationService {
 
     public Location saveLocationByMerchantId(Long merchantId, CreateLocationRequest request) {
 
+        SecurityUtils.requireActiveMerchant(merchantId); // SEC-020
         Merchant merchant = merchantService.findById(merchantId);
 
         Location loc = new Location();

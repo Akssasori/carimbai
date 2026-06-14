@@ -6,6 +6,7 @@ import com.app.carimbai.dtos.admin.UpdateProgramRequest;
 import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.models.fidelity.Program;
 import com.app.carimbai.repositories.ProgramRepository;
+import com.app.carimbai.utils.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ public class ProgramService {
 
     public Program createProgram(Long merchantId, @Valid CreateProgramRequest request) {
 
+        SecurityUtils.requireActiveMerchant(merchantId); // SEC-020
         Merchant merchant = merchantService.findById(merchantId);
 
         var program = Program.builder()
@@ -43,6 +45,7 @@ public class ProgramService {
     }
 
     public Program updateProgram(Long merchantId, Long programId, @Valid UpdateProgramRequest request) {
+        SecurityUtils.requireActiveMerchant(merchantId); // SEC-020
         Program program = programRepository.findById(programId)
                 .orElseThrow(() -> new IllegalArgumentException("Program not found with id: " + programId));
 

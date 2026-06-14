@@ -68,6 +68,67 @@ Ao versionar as correções, o `git diff` revelou que as Fases 1–12 analisaram
 
 ---
 
+## 2-bis. FIX-01 (profile de produção + de-fang do fallback) — código aplicado
+
+| Achado | Ação aplicada (código) | Arquivo | Reteste | Status |
+|---|---|---|---|---|
+| SEC-005 | Swagger/api-docs **desabilitados** no novo profile `prod` | `application-prod.yaml` | Inspeção: `springdoc.*.enabled: false`. Dinâmico: smoke test pós-deploy (`/api-docs`→404). | **Fechado no `prod`** (pendente ativar profile na VPS) |
+| SEC-011 | `show-sql: false` no `prod` | `application-prod.yaml` | Inspeção. | **Fechado no `prod`** |
+| SEC-028 | `prod` criado: datasource via env, **sem default de segredo** (herda base → fail-closed); VPS setará `SPRING_PROFILES_ACTIVE=prod` | `application-prod.yaml` | Inspeção. | **Parcial** (depende da VPS ativar `prod`) |
+| SEC-003 | Fallback `h9V$…` trocado por `dev-only-insecure-…` em `dev`/`local`; `prod` não tem default | `application-dev.yaml`, `application-local.yaml`, `application-prod.yaml` | `grep h9V src/main/resources` → **vazio** ✅. `./mvnw test` 21/21. | **Parcial** — o `h9V$…` **ainda vive no histórico do git**; exige **rotação** + **BFG** (você). |
+
+> **Importante:** SEC-003 só fecha de fato após **rotacionar** o segredo real e
+> **limpar o histórico**. A troca do fallback remove o valor de aparência real da
+> árvore atual, mas **não** neutraliza o que já está no histórico.
+
+## 2-ter. FIX-03 (isolamento multi-tenant) — implementado no backend
+
+| Achado | Ação aplicada | Arquivo(s) | Reteste | Status |
+|---|---|---|---|---|
+| SEC-020 | `SecurityUtils.requireActiveMerchant(merchantId)` (→403) aplicado em criar/editar programa, criar localização, criar staff; `setPin` exige vínculo do caixa-alvo com o merchant do token | `SecurityUtils`, `ProgramService`, `LocationService`, `StaffService` | **Testes** `SecurityUtilsTest` (4) + `MerchantScopeAuthzTest` (2): ADMIN de A operando em B → `AccessDeniedException`, **repos não tocados**. `./mvnw test` **27/27**. | **Fechado** (exceto createMerchant) |
+| SEC-020 (createMerchant) | Flag global `platform_admin` em `staff_users` (migration); autoridade `PLATFORM_ADMIN` derivada no filtro; `createMerchant` exige `@PreAuthorize('PLATFORM_ADMIN')` | `V2026.30.06…__add_platform_admin_staff_user.sql`, `StaffUser`, `JwtAuthenticationFilter`, `MerchantController` | **Teste** `JwtAuthenticationFilterTest` (2): platform admin recebe a autoridade; ADMIN comum não. `./mvnw test` **29/29**. | **Fechado** (requer bootstrap: `UPDATE … SET platform_admin=TRUE`) |
+| SEC-017 (cross-tenant) | `setPin` agora barra caixa de outro merchant | `StaffService` | coberto pela mesma checagem | **Fechado** (parte cross-tenant; brute force segue em FIX-04) |
+
+> **Comportamento alterado (intencional):** chamadas cross-tenant aos endpoints
+> ADMIN (`/api/merchants/{B}/...`, `setPin` de staff de B, criar staff em B) agora
+> retornam **403**. Chamadas ao **próprio** merchant seguem normais. Admins com
+> múltiplos merchants operam B após `POST /api/auth/switch-merchant` (token com
+> `merchantId=B`). Nenhum fluxo legítimo é quebrado.
+
+## 2-quater. FIX-23 (resgate sem PIN) — implementado no backend
+
+| Achado | Ação aplicada | Arquivo | Reteste | Status |
+|---|---|---|---|---|
+| SEC-034 (PIN) | Verificação de PIN movida para fora do `if (locationId != null)`; default **fail-safe = exigir PIN** quando não há location | `RedeemService` | **Testes** `RedeemServiceTest` (2): sem locationId e sem PIN → rejeitado (cartão nem é buscado); com PIN → `validateCashierPin` é chamado mesmo sem location. `./mvnw test` **31/31**. | **Fechado** (bypass do PIN) |
+| SEC-034 (token) | Token REDEEM_QR **continua opcional** — torná-lo obrigatório é mudança de contrato/PWA | — | — | **Aberto** (endurecimento opcional) |
+
+> **Comportamento alterado (intencional):** resgate **sem `locationId`** agora
+> **exige PIN** (antes resgatava sem nenhum segundo fator). O opt-out de PIN segue
+> funcionando, mas só explicitamente via uma location com `requirePinOnRedeem=false`.
+
+## 2-quinquies. FIX-02 Fase A (auth de cliente — backend aditivo)
+
+| Achado | Ação aplicada | Arquivo(s) | Reteste | Status |
+|---|---|---|---|---|
+| SEC-001/002/004 | **Fase A (aditiva, não-quebra):** `social-login` emite **JWT de cliente** (`type=CUSTOMER`, sub=customerId); `JwtAuthenticationFilter` autentica o token como `ROLE_CUSTOMER` de forma **type-aware** (não o trata como staff). Endpoints do cliente **continuam `permitAll`**. | `JwtService`, `JwtAuthenticationFilter`, `SecurityConfig`, `UserRegistrationFacade`(+`CustomerSession`), `CustomerController`, `CustomerMapper`, `CustomerLoginResponse` | **Testes** `JwtServiceTest` (+2: token de cliente vs staff), `JwtAuthenticationFilterTest` (+1: cliente vira `ROLE_CUSTOMER`, não toca staffRepo). `./mvnw test` **34/34**. | **ABERTO** — Fase A é fundação; **SEC-001 só fecha na Fase C** (flip dos endpoints) |
+
+> A Fase A **não reduz** o risco do SEC-001 por si só (endpoints seguem públicos);
+> ela habilita o token para o frontend (Fase B) e prepara o corte (Fase C). Ver
+> `FIX-02-PROPOSAL.md` para o rollout.
+
+## 2-sexies. FIX-02 Fase C (corte — fecha o SEC-001 para cartões/QR)
+
+| Achado | Ação aplicada | Arquivo(s) | Reteste | Status |
+|---|---|---|---|---|
+| SEC-001/002/004 | `GET /api/cards/**` e `/api/qr/**` exigem `ROLE_CUSTOMER` (`SecurityConfig`); `CardService` valida **posse** (`requireActiveCustomer`) em `getCustomerCards`, `generateCustomerQr`, `generateRedeemQr`; **enroll** (`POST /api/cards`) → staff `CASHIER/ADMIN` escopado ao merchant | `SecurityConfig`, `SecurityUtils`, `CardService`, `QrCodeController`, `CardsController` | **Testes** `CardServiceAuthzTest` (5): cliente A não lê cartões/QR de B; enroll cross-merchant negado. `./mvnw test` **39/39**. | **Fechado** (cartões/QR) |
+| SEC-001 (residual) | `login-or-register` por e-mail ainda reivindica/atualiza cliente sem auth | — | — | **Aberto** — fechar com onboarding social-only no PWA + remover/restringir o endpoint |
+
+> ⚠️ **Coordenação de deploy (crítico):** a Fase C **quebra** clientes de
+> login-light (sem token → **403** ao carregar cartões). O PWA precisa estar
+> **social-only** (onboarding sem o formulário de e-mail) **antes** de a Fase C ir
+> a produção. Sequência segura: deploy da Fase B (PWA manda Bearer) → PWA
+> social-only → **então** deploy da Fase C (backend).
+
 ## 3. Achados que permanecem ABERTOS (sem correção nesta rodada)
 
 Por exigirem proposta/design ou mudança grande (ver `SECURITY_FIX_PLAN.md`):
@@ -89,14 +150,14 @@ Por exigirem proposta/design ou mudança grande (ver `SECURITY_FIX_PLAN.md`):
 
 | Resultado | Qtde | Achados |
 |---|---|---|
-| **Fechado** | 6 | SEC-014, SEC-015, SEC-016, SEC-017(formato), SEC-023(backend), SEC-035 |
-| **Parcial** | 3 | SEC-007, SEC-022, SEC-029 |
-| **Reenquadrado** (precisão) | 3 | SEC-005 (↓Baixa), SEC-011, SEC-028 |
-| **Aberto** (sem correção) | restante | ver §3 (inclui todos os Crítico/Alto) |
+| **Fechado** | 12 | **SEC-001/002/004 (cartões/QR, FIX-02 A+B+C)**, SEC-014, SEC-015, SEC-016, SEC-017(formato+cross-tenant), **SEC-020 (completo)**, **SEC-034 (bypass do PIN)**, SEC-023(backend), SEC-035, + SEC-005/011 no `prod` |
+| **Parcial** | 4 | SEC-003, SEC-007, SEC-022, SEC-029, SEC-028 |
+| **Aberto** (sem correção) | restante | ver §3 (inclui SEC-001/002/004/034 + createMerchant) |
 
-> **Cobertura de teste:** `DtoValidationTest` (12 casos) torna executável a
-> verificação de SEC-016/017/022/023/035 — antes só estática. Total `./mvnw test`
-> = **21/21 verde**.
+> **Cobertura de teste:** `./mvnw test` = **27/27 verde**. `DtoValidationTest` (12)
+> cobre validação (SEC-016/017/022/023/035); `SecurityUtilsTest` (4) +
+> `MerchantScopeAuthzTest` (2) cobrem o isolamento multi-tenant (SEC-020);
+> `JwtServiceTest` (4) + `StampTokenServiceTest` (5) cobrem o core de cripto.
 
 ## 5. Critério de aceite da Fase 15
 

@@ -237,7 +237,14 @@ detectados no backend.
   - `GET /api/cards/customer/{customerId}` é público e retorna a lista de cartões (lojista, programa, recompensa, progresso) de **qualquer** cliente, com `customerId` sequencial/enumerável.
 - **Impacto:** sem autenticar, um atacante: (a) descobre se um e-mail é cliente e lê seus dados; (b) **sobrescreve** telefone/e-mail/nome de um cliente existente; (c) enumera `customerId` e mapeia hábitos de consumo (quais lojas a pessoa frequenta) — exposição de dados pessoais em escala (risco LGPD relevante).
 - **Recomendação:** introduzir autenticação de cliente (sessão/JWT próprio após `social-login` ou OTP), escopar `/api/cards/**` e `/api/qr/**` ao dono autenticado, e tratar `login-or-register` como operação autenticada/idempotente que não sobrescreve dados de terceiros por e-mail. Validar na Fase 5/6.
-- **Status:** Aberto.
+- **Status:** **Fechado para cartões/QR (FIX-02 Fases A+B+C)** — `GET /api/cards/**`
+  e `/api/qr/**` exigem `ROLE_CUSTOMER` e o service valida **posse** (`requireActiveCustomer`);
+  enroll (`POST /api/cards`) virou ação de staff escopada ao merchant. Testes
+  `CardServiceAuthzTest` (5), `./mvnw test` **39/39**. **Residual (Aberto):** o
+  `POST /api/customers/login-or-register` ainda reivindica/atualiza cliente por
+  e-mail sem auth — fechar exige onboarding **social-only** no PWA + remover/restringir
+  o endpoint. ⚠️ **Deploy:** a Fase C **quebra** clientes de login-light (sem token
+  → 403 nos cartões); o PWA precisa estar social-only **antes** de cortar em produção.
 
 ### SEC-002 — Emissão pública de tokens de selo (CUSTOMER_QR) para qualquer cartão
 - **Severidade:** Alta
@@ -247,7 +254,7 @@ detectados no backend.
 - **Evidência segura:** `GET /api/qr/{cardId}` (público) gera um token HMAC válido (TTL ~90s) para **qualquer** `cardId`. O token é o que o caixa escaneia para carimbar.
 - **Impacto:** quebra a premissa de "presença do cliente". Um caixa/ADMIN mal-intencionado (ou com acesso à API) pode obter o QR de cartões arbitrários e carimbar sem o cliente presente (fraude de fidelidade). Também permite enumeração de cartões válidos.
 - **Recomendação:** exigir que o QR só seja emitido para o cliente autenticado dono do cartão. Reavaliar junto de SEC-001. Validar na Fase 12 (lógica de negócio).
-- **Status:** Aberto.
+- **Status:** **Fechado (FIX-02 Fase C)** — `/api/qr/{cardId}` exige `ROLE_CUSTOMER` e `CardService.generateCustomerQr` valida posse do cartão.
 
 ### SEC-003 — Segredos (JWT/HMAC/DB) versionados no repositório
 - **Severidade:** Alta (Crítica se a produção usar o fallback sem `env`).
@@ -269,7 +276,11 @@ detectados no backend.
   `CARIMBAI_HMAC_SECRET` aparece apenas como placeholder (`dev-secret-change-me`),
   sem valor real vazado; ainda assim, usá-lo como fallback é inseguro. Detalhes e
   resultados negativos no **Anexo — Fase 3**.
-- **Status:** Aberto. **Ação imediata recomendada: rotacionar o JWT secret.**
+- **Status:** **Parcial (FIX-01)** — o fallback de aparência real (`h9V$…`) foi
+  trocado por `dev-only-insecure-…` em `dev`/`local`, e o `prod` não tem default
+  (fail-closed). **Ainda Aberto:** o `h9V$…` **vive no histórico do git** →
+  exige **rotação do segredo real** + **limpeza de histórico (BFG)** — ações do
+  responsável. Ver `FIX-01-PROPOSAL.md` / `RETEST_REPORT.md`.
 
 ### SEC-004 — Emissão pública de REDEEM_QR + criação pública de cartões
 - **Severidade:** Média
@@ -279,7 +290,7 @@ detectados no backend.
 - **Evidência segura:** `GET /api/cards/{cardId}/redeem-qr` e `POST /api/cards` são públicos. O resgate em si exige CASHIER/ADMIN + PIN, mas a emissão do token de resgate e a criação de cartões (vínculo customer↔program arbitrário) não têm dono.
 - **Impacto:** mint de tokens de resgate para cartões arbitrários (fraude com insider), e criação não autenticada de cartões (poluição de dados / consumo de recursos).
 - **Recomendação:** escopar ao cliente/lojista autenticado. Reavaliar com SEC-001.
-- **Status:** Aberto.
+- **Status:** **Fechado (FIX-02 Fase C)** — `redeem-qr` exige cliente dono do cartão; criação de cartão (enroll) exige staff `CASHIER/ADMIN` escopado ao merchant.
 
 ### SEC-005 — Swagger/OpenAPI habilitados e públicos (inclusive provável produção)
 - **Severidade:** Média
@@ -294,7 +305,9 @@ detectados no backend.
   exposto (e `permitAll`); demais endpoints actuator caem em `denyAll`. Recomenda-se
   fixar explicitamente `management.endpoints.web.exposure.include=health` e
   `management.endpoint.health.show-details=never`.
-- **Status:** Aberto.
+- **Status:** **Fechado no profile `prod` (FIX-01)** — `application-prod.yaml`
+  desabilita `springdoc.api-docs`/`swagger-ui`. Resta **ativar
+  `SPRING_PROFILES_ACTIVE=prod` na VPS** e validar no smoke test (`/api-docs`→404).
 
 ### SEC-006 — Ausência de rate limiting em login, cadastro e login social
 - **Severidade:** Média
@@ -431,8 +444,21 @@ detectados no backend.
   - `POST /api/admin/staff-users/{id}/pin` → `StaffService.setPin(id, …)` aceita **qualquer** `staffId`, sem escopo de merchant → ADMIN de A sobrescreve o PIN do caixa de B (ver também SEC-017).
   - `POST /api/merchants` → qualquer `ADMIN` cria novos lojistas (não há separação entre *platform admin* e *merchant admin*; o criador nem fica vinculado ao merchant criado).
 - **Impacto:** um lojista cliente (ADMIN do próprio merchant) pode **sabotar/alterar dados de concorrentes** na mesma plataforma: editar/desativar promoções alheias, criar staff sob outro lojista, redefinir PIN de caixas de terceiros, criar merchants. Quebra de isolamento multi-tenant — crítico para um SaaS comercializado.
-- **Recomendação:** em cada operação de gestão, validar `merchantId (path/body) == SecurityUtils.getActiveMerchantId()` (ou derivar o merchant **somente** do token e ignorar o do path/body); para `setPin`, exigir que o staff alvo pertença ao merchant do token. Introduzir papel **separado** de *platform admin* para `createMerchant`/onboarding. Mudança de autorização com impacto funcional → **propor plano antes de implementar** (não alterar agora). Validar com os testes `TC-AUTHZ-*`.
-- **Status:** Aberto.
+- **Recomendação:** em cada operação de gestão, validar `merchantId (path/body) == SecurityUtils.getActiveMerchantId()` (ou derivar o merchant **somente** do token e ignorar o do path/body); para `setPin`, exigir que o staff alvo pertença ao merchant do token. Introduzir papel **separado** de *platform admin* para `createMerchant`/onboarding. Validar com os testes `TC-AUTHZ-*`.
+- **Status:** **Parcial → em grande parte Fechado (FIX-03)** — adicionado
+  `SecurityUtils.requireActiveMerchant(merchantId)` (lança `AccessDeniedException`→403)
+  e aplicado em `ProgramService.createProgram/updateProgram`, `LocationService`,
+  `StaffService.createStaffUser`; `StaffService.setPin` passa a exigir que o caixa
+  alvo tenha vínculo ativo com o merchant do token. Testes: `SecurityUtilsTest` (4)
+  + `MerchantScopeAuthzTest` (2). **createMerchant** agora exige autoridade
+  **`PLATFORM_ADMIN`** (flag global `platform_admin` em `staff_users`, derivada no
+  `JwtAuthenticationFilter`; `MerchantController.createMerchant` →
+  `@PreAuthorize("hasAuthority('PLATFORM_ADMIN')")`). Teste:
+  `JwtAuthenticationFilterTest` (2). `./mvnw test` **29/29**. Admins multi-merchant
+  continuam via `switch-merchant`. **SEC-020 Fechado.**
+- **Bootstrap (operacional):** após a migration
+  `V2026.30.06.13.00.00__add_platform_admin_staff_user.sql`, designar o operador:
+  `UPDATE core.staff_users SET platform_admin = TRUE WHERE email = '...';`
 
 ### SEC-022 — Validação de entrada insuficiente e inconsistente
 - **Severidade:** Média
@@ -563,7 +589,9 @@ detectados no backend.
 - **Evidência segura:** o deploy é **jar via systemd na VPS** (`.github/workflows/deploy.yml`); não há perfil de produção. Se `SPRING_PROFILES_ACTIVE` não for definido, cai no default **`local`** (Flyway on, DB `localhost`, **fallback de JWT hardcoded** SEC-003, **`show-sql:true`** SEC-011, **Swagger público** SEC-005). Mesmo com `dev`, herdam-se Swagger/show-sql/fallback. A segurança em produção passa a depender de **cada env var** estar corretamente sobrescrita.
 - **Impacto:** alta probabilidade de produção rodar com Swagger exposto, SQL em log e — pior — **assinando JWT com o segredo hardcoded** se a env faltar (token for|forja de ADMIN, SEC-003).
 - **Recomendação:** criar `application-prod.yaml` com Swagger/`show-sql` desativados, **sem** defaults de segredo (falha se ausente), e fixar `SPRING_PROFILES_ACTIVE=prod` no serviço; remover o `@Profile("stg")` órfão ou criar o yaml. Tratar junto com SEC-003/005/011 no `SECURITY_FIX_PLAN.md`.
-- **Status:** Aberto.
+- **Status:** **Parcial (FIX-01)** — `application-prod.yaml` criado (Swagger/`show-sql`
+  off, sem default de segredo → fail-closed). **Pendente:** a VPS ativar
+  `SPRING_PROFILES_ACTIVE=prod` (confirmado que pode). `@Profile("stg")` órfão ainda existe.
 
 ### SEC-029 — Cabeçalhos de segurança incompletos e HTTPS/forward-headers não configurados
 - **Severidade:** Baixa
@@ -676,9 +704,15 @@ detectados no backend.
 - **Recomendação:** aplicar a política de PIN com base no **merchant/programa**
   (não condicionada a `locationId`); exigir `locationId` válido no resgate; e/ou
   **exigir o token REDEEM_QR** (presença do cliente, com anti-replay) para resgatar.
-  Derivar `location` do contexto/token. Mudança de fluxo de negócio → **propor antes**.
-  Testes: `TC-BIZ-05/06`.
-- **Status:** Aberto.
+  Derivar `location` do contexto/token. Testes: `TC-BIZ-05/06`.
+- **Status:** **Parcial → Fechado no bypass do PIN (FIX-23)** — a verificação de
+  PIN saiu de dentro do `if (locationId != null)` e passou a ser avaliada
+  **sempre**, com **default fail-safe = exigir PIN** quando não há location.
+  Omitir `locationId` **não** pula mais o segundo fator; o opt-out de PIN continua
+  possível, mas só explicitamente por location (`requirePinOnRedeem=false`).
+  Testes: `RedeemServiceTest` (2). `./mvnw test` **31/31**. **Endurecimento ainda
+  aberto (opcional):** tornar o **token REDEEM_QR obrigatório** (presença do
+  cliente) é mudança de contrato/PWA → proposta futura.
 
 ### SEC-035 — Parâmetros de programa sem validação de regra de negócio
 - **Severidade:** Baixa
@@ -899,9 +933,18 @@ detectados no backend.
 > fixes seguros com teste (FIX-06/07/09/13/16/17/18/24/25) — `./mvnw test` →
 > **BUILD SUCCESS (21/21)**; fluxos de auth/autz e contrato de API **não**
 > alterados. **Fechados:** SEC-014/015/016/017(formato)/023(backend)/035.
-> **Parciais:** SEC-007, SEC-022, SEC-029. Os achados **Crítico/Alto**
-> (SEC-001/002/003/004/020 e SEC-034) seguem **abertos** — exigem proposta/aprovação
-> antes (FIX-01/02/03/23).
+> **Parciais:** SEC-007, SEC-022, SEC-029, e **SEC-003/005/011/028 (FIX-01 — código
+> aplicado)**: criado `application-prod.yaml` (Swagger/`show-sql` off, fail-closed)
+> e removido o fallback de aparência real do `dev`/`local`. **FIX-03 (SEC-020,
+> isolamento multi-tenant) implementado** no backend (program/location/staff/setPin
+> escopados ao merchant do token; createMerchant ainda pendente de `PLATFORM_ADMIN`).
+> **FIX-03 completo**, **FIX-23**, e **FIX-02 Fases A+B+C** (auth de cliente:
+> backend emite/valida JWT de cliente, PWA envia Bearer, e os endpoints de
+> cartão/QR exigem `ROLE_CUSTOMER` + posse → **SEC-001/002/004 fechados** para
+> cartões/QR). `./mvnw test` → **39/39**. **Residual SEC-001:** `login-or-register`
+> por e-mail (exige onboarding social-only no PWA p/ retirar). **Falta você:**
+> FIX-01 (rotação/VPS/histórico) e a **coordenação de deploy da Fase C** (PWA
+> social-only antes do corte). Crítico/Alto restante: nenhum além do residual.
 
 ---
 
