@@ -1,3 +1,10 @@
+server:
+  # Reconhece X-Forwarded-* do proxy reverso (HTTPS/HSTS corretos) — SEC-029.
+  forward-headers-strategy: framework
+  error:
+    # Não vazar stack trace nem mensagem de exceção nas respostas de erro — SEC-007.
+    include-stacktrace: never
+    include-message: never
 spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}

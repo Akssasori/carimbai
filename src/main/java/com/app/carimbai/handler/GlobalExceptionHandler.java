@@ -13,6 +13,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
@@ -42,9 +43,23 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<?> validation(MethodArgumentNotValidException ex) {
+        // Retorna apenas campo->mensagem, sem expor a estrutura interna do BindingResult (SEC-007).
+        Map<String, String> fields = new HashMap<>();
+        ex.getBindingResult().getFieldErrors()
+                .forEach(fe -> fields.put(fe.getField(),
+                        fe.getDefaultMessage() != null ? fe.getDefaultMessage() : "inválido"));
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(Map.of("error", "VALIDATION", "message", ex.getBindingResult().toString()));
+                .body(Map.of("error", "VALIDATION", "fields", fields));
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<?> dataIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {
+        // Entrada acima do limite da coluna ou violação de UNIQUE → 409 genérico
+        // (não ecoar a mensagem do banco, que revela coluna/constraint) — SEC-007/022.
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "CONFLICT", "message", "Operação viola uma restrição de dados"));
     }
 
     @ExceptionHandler(TooManyStampsException.class)

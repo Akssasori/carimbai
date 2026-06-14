@@ -1,21 +1,24 @@
 package com.app.carimbai.dtos.admin;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 
 import java.time.OffsetDateTime;
 
 public record CreateProgramRequest(
 
         @NotBlank String name,
-        Integer ruleTotalStamps,
+        @Min(1) Integer ruleTotalStamps,
         String rewardName,
-        Integer expirationDays,
+        @Positive Integer expirationDays,
         String description,
         OffsetDateTime startAt,
         OffsetDateTime endAt,
         String category,
         String terms,
         String imageUrl,
-        Integer sortOrder
+        @PositiveOrZero Integer sortOrder
 ) {
 }

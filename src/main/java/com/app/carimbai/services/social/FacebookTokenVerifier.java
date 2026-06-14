@@ -54,7 +54,8 @@ public class FacebookTokenVerifier implements SocialTokenVerifier {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) {
-                log.warn("Facebook Graph API retornou {}: {}", response.statusCode(), response.body());
+                // Não logar o corpo da resposta: contém id/nome/e-mail (PII) — SEC-015.
+                log.warn("Facebook Graph API retornou status {}", response.statusCode());
                 throw new InvalidSocialTokenException("Token do Facebook inválido");
             }
 
@@ -91,8 +92,9 @@ public class FacebookTokenVerifier implements SocialTokenVerifier {
             byte[] hash = mac.doFinal(accessToken.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
         } catch (Exception e) {
+            // Falhar fechado: não prosseguir sem o appsecret_proof quando há segredo (SEC-014).
             log.warn("Falha ao calcular appsecret_proof: {}", e.getMessage());
-            return "";
+            throw new InvalidSocialTokenException("Falha ao validar token do Facebook");
         }
     }
 }
