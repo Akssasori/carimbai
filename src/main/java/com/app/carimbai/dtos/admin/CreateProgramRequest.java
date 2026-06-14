@@ -2,6 +2,7 @@ package com.app.carimbai.dtos.admin;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 
@@ -18,6 +19,8 @@ public record CreateProgramRequest(
         OffsetDateTime endAt,
         String category,
         String terms,
+        // Bloqueia esquemas perigosos (javascript:/data:) — XSS no PWA (SEC-023). Vazio/nulo permitido.
+        @Pattern(regexp = "^$|^https?://.+", message = "imageUrl deve começar com http(s):// ou ser vazio")
         String imageUrl,
         @PositiveOrZero Integer sortOrder
 ) {

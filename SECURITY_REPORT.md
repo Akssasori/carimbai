@@ -477,7 +477,9 @@ detectados no backend.
   textos; garantir *output encoding* no frontend (responsabilidade primária do
   PWA — registrar em revisão do `carimbai-app`). Considerar sanitização
   server-side (ex.: OWASP Java HTML Sanitizer) se algum campo for renderizado como HTML.
-- **Status:** Aberto.
+- **Status:** **Backend Fechado (Fase 15, FIX-25)** — `imageUrl` agora aceita só
+  `http(s)://`/vazio (`@Pattern`), com teste em `DtoValidationTest`. **Aberto no
+  frontend**: *output encoding* + CSP do PWA seguem em FIX-12.
 
 ### SEC-024 — JWT de staff armazenado em `localStorage` (roubo via XSS)
 - **Severidade:** Média
@@ -891,14 +893,15 @@ detectados no backend.
 
 ---
 
-> **Status do plano:** Fases 1–14 concluídas + **Fase 15 (primeira rodada de
-> reteste)**. Plano de correção em `SECURITY_FIX_PLAN.md`; checklist LGPD em
-> `PRIVACY_ACTION_ITEMS.md`; reteste em `RETEST_REPORT.md`. Na **Fase 15** foram
-> aplicados os *quick wins* seguros (FIX-06/07/09/13/16/17/18/24) — `./mvnw test`
-> → BUILD SUCCESS (9/9); fluxos de auth/autz e contrato de API **não** alterados.
-> Fechados: SEC-014, SEC-015, SEC-016, SEC-035. Parciais: SEC-007, SEC-022, SEC-029.
-> Achados Crítico/Alto (SEC-001/002/003/004/020) seguem **abertos** e exigem
-> proposta antes (FIX-01/02/03).
+> **Status do plano:** Fases 1–14 concluídas + **Fase 15 (2 rodadas de reteste)**.
+> Plano priorizado (Crítico/Alto primeiro) em `SECURITY_FIX_PLAN.md`; checklist
+> LGPD em `PRIVACY_ACTION_ITEMS.md`; reteste em `RETEST_REPORT.md`. Aplicados os
+> fixes seguros com teste (FIX-06/07/09/13/16/17/18/24/25) — `./mvnw test` →
+> **BUILD SUCCESS (21/21)**; fluxos de auth/autz e contrato de API **não**
+> alterados. **Fechados:** SEC-014/015/016/017(formato)/023(backend)/035.
+> **Parciais:** SEC-007, SEC-022, SEC-029. Os achados **Crítico/Alto**
+> (SEC-001/002/003/004/020 e SEC-034) seguem **abertos** — exigem proposta/aprovação
+> antes (FIX-01/02/03/23).
 
 ---
 

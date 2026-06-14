@@ -1,96 +1,87 @@
 # Plano de Correção Priorizado — carimbai
 
-> Gerado na **Fase 10** do `SECURITY_LGPD_PLAN.md`, consolidando os 30 achados de
-> `SECURITY_REPORT.md` (SEC-001…SEC-031) em itens de correção (`FIX-xx`),
-> priorizados e com risco de quebra. **Nada foi implementado** — este é o plano.
+> Derivado de `SECURITY_REPORT.md` (SEC-001…SEC-035). **Priorizado por severidade**:
+> as correções **Críticas e Altas vêm primeiro** (§1), depois Média/Baixa (§3).
+> Estado das correções em `RETEST_REPORT.md`.
 >
-> Regra de ouro do plano: correções com impacto em **autenticação, autorização,
-> banco ou contrato de API** são **propostas antes** de implementar. Correções
-> **pequenas e seguras** podem ser aplicadas mediante sua autorização.
+> **Regra de ouro:** mudanças em **autenticação, autorização, banco ou contrato de
+> API** são **apenas propostas** aqui — **não implementadas** sem aprovação. As
+> correções **de baixo risco com teste** já foram aplicadas (§4).
 
 ## Legenda
-- **Prioridade:** P0 (antes de comercializar / crítico) · P1 (alta) · P2 (média) · P3 (baixa/operacional).
-- **Tipo:** 🟢 pequena e segura · 🟡 média · 🔴 grande/impacto funcional (**propor antes**).
-- **Risco de quebra:** chance de afetar fluxo existente se aplicado sem cuidado.
+- **Tipo:** 🟢 baixa/segura (aplicável) · 🟡 média · 🔴 grande/impacto funcional (**propor antes**).
+- **Risco de quebra:** chance de afetar fluxo existente.
 
 ---
 
-> **Atualização (Fase 15):** aplicados os *quick wins* **FIX-06, FIX-07, FIX-09,
-> FIX-13, FIX-16, FIX-17, FIX-18, FIX-24** (`./mvnw test` → BUILD SUCCESS 9/9).
-> Status e ressalvas por achado em `RETEST_REPORT.md`. **FIX-15 (CORS por profile)
-> adiado** — depende do profile de produção (FIX-01). Demais itens 🔴 seguem como
-> proposta.
+## 1. PRIORIDADE MÁXIMA — Críticas e Altas (🔴 propor antes de implementar)
 
-## 1. Matriz de correção
+> Nenhuma destas foi implementada: todas tocam auth/autz/contrato/segredo. São as
+> **bloqueantes para comercializar**.
 
-| FIX | Prioridade | Correção | Achados | Arquivos afetados (prováveis) | Tipo | Risco de quebra | Status |
-|---|---|---|---|---|---|---|---|
-| FIX-01 | **P0** | Rotacionar JWT/HMAC/DB, remover fallbacks de segredo e criar **profile de produção** (sem default sensível; Swagger/show-sql off); limpar histórico do git | SEC-003, SEC-028, SEC-005, SEC-011 | `application*.yaml`, novo `application-prod.yaml`, env/GitHub Secrets, serviço systemd | 🟡 | Médio (rotação invalida JWTs; relogin) | Proposto |
-| FIX-02 | **P0** | **Autenticar o cliente** e escopar `/api/cards/**`, `/api/qr/**`, `login-or-register` ao dono | SEC-001, SEC-002, SEC-004, SEC-021 | `SecurityConfig`, `CardsController`, `QrCodeController`, `CardService`, novo mecanismo de sessão de cliente, **frontend** | 🔴 | **Alto** (muda contrato e PWA) | **Propor antes** |
-| FIX-03 | **P0** | Escopar endpoints ADMIN ao merchant do token; `setPin` só para staff do mesmo merchant; papel `PLATFORM_ADMIN` para `createMerchant` | SEC-020, SEC-017(cross-tenant) | `MerchantController`/services, `StaffService`, `AdminController`, `SecurityUtils` | 🔴 | **Alto** (autorização) | **Propor antes** |
-| FIX-04 | **P1** | Rate limiting/anti-automação em login, cadastro, social-login, cards/qr; lockout de PIN; limite de tamanho de requisição | SEC-006, SEC-017, SEC-032 | filtro/bucket (ex.: Bucket4j), `RedeemService`/`StaffService`, `application-prod.yaml` | 🟡 | Médio | Proposto |
-| FIX-05 | **P1** | MFA (TOTP) para contas `ADMIN` | SEC-018 | `staff_users` (+coluna), `AuthService`, novo fluxo de login, **frontend** | 🔴 | **Alto** (login/PWA) | **Propor antes** |
-| FIX-06 | **P1** | Higienizar erros: mensagens genéricas + handler `Exception` e `DataIntegrityViolationException`; `include-stacktrace/message=never` | SEC-007 | `GlobalExceptionHandler`, `application-prod.yaml` | 🟢 | Baixo | Pronta p/ aplicar |
-| FIX-07 | **P1** | Validação de entrada: `@Email`/`@Size`/`@Pattern`/`@Valid` cascateado; tipar `StampRequest.payload` | SEC-022 | DTOs de cliente/admin, `CustomerController`, `StampRequest` | 🟢 | Baixo (passa a rejeitar 400 onde hoje 500/aceita) | Pronta p/ aplicar |
-| FIX-08 | **P1** | Login anti-enumeração: respostas uniformes para usuário inexistente/inativo/sem vínculo | SEC-008 | `AuthService`, `GlobalExceptionHandler` | 🟡 | Baixo-Médio (muda corpo de erro) | Proposto |
-| FIX-09 | **P2** | Remover PII do log do Facebook (`statusCode` em vez de `body`) | SEC-015 | `FacebookTokenVerifier.java:57` | 🟢 | **Nenhum** | **Quick win** |
-| FIX-10 | **P2** | Logging de auditoria (eventos mínimos) + gestão de logs (retenção/rotação/acesso/mascaramento) | SEC-026, SEC-027 | novo `audit`/logback, `application-prod.yaml`, serviços | 🟡 | Baixo | Proposto |
-| FIX-11 | **P2** | JWT hardening: `iss`/`aud`, TTL menor, revogação/idle, logout | SEC-012 | `JwtService`, `JwtAuthenticationFilter`, `AuthService`, **frontend** | 🔴 | Médio-Alto | **Propor antes** |
-| FIX-12 | **P2** | Frontend: tirar JWT/PII do `localStorage`, validar esquema de `imageUrl`, *output encoding*, CSP do PWA | SEC-024, SEC-025, SEC-023 | `../carimbai-app` (`api.ts`, `useCustomer.ts`, componentes) | 🟡 | Médio (frontend) | Proposto (outro repo) |
-| FIX-13 | **P2** | Headers de segurança + `forward-headers-strategy` + HTTPS/HSTS no proxy; `Referrer-Policy` | SEC-029 | `SecurityConfig`, `application-prod.yaml`, proxy/VPS | 🟢 | Baixo | Pronta p/ aplicar (app) + infra |
-| FIX-14 | **P2** | Cripto/pseudonimização de `document` em repouso (ou cripto de disco) + `sslmode=require` no DB de produção | SEC-013 | entidades/migrations, `application-prod.yaml`, infra DB | 🟡 | Médio (migração de dados) | Proposto |
-| FIX-15 | **P2** | CORS por profile (só origem do PWA em produção) | SEC-030 | `SecurityConfig`, `application-prod.yaml` | 🟢 | Baixo | Pronta p/ aplicar |
-| FIX-16 | **P3** | Política de senha de staff (mínimo/complexidade; avaliar BCrypt(12)) | SEC-016 | `CreateStaffUserRequest`, `BcryptConfig` | 🟢 | Baixo (cadastros novos exigem senha forte) | Pronta p/ aplicar |
-| FIX-17 | **P3** | Validar formato do PIN (`@Pattern`/`@Valid`) | SEC-017 (formato) | `SetPinRequest`, `AdminController` | 🟢 | Baixo | Pronta p/ aplicar |
-| FIX-18 | **P3** | `appsecret_proof` do Facebook obrigatório quando configurado | SEC-014 | `FacebookTokenVerifier` | 🟢 | Baixo | Pronta p/ aplicar |
-| FIX-19 | **P3** | Backups documentados, criptografados e com restauração testada | SEC-031 | infra/VPS, docs | 🧭 | — (operacional) | Proposto |
-| FIX-20 | **P3** | Hardening de Docker (não-root, alinhar porta, fixar imagens) — só se conteinerizar prod | SEC-010 | `Dockerfile`, `docker-compose.yaml` | 🟢 | Baixo (dev) | Proposto |
-| FIX-21 | **Futuro** | Reset/troca de senha seguro (token único, expira, genérico, rate limit) | SEC-019 | novo fluxo + provedor de e-mail | 🔴 | — (feature nova) | Futuro |
-| FIX-22 | **P3** | Paginação com tamanho máximo nas listagens (e em futuras) | SEC-033 | `CardService`, `ProgramService`, repos, controllers | 🟢 | Baixo (muda formato de resposta de lista) | Proposto |
-| FIX-23 | **P1** | Resgate: exigir PIN com base no merchant/programa (não em `locationId`) e/ou token REDEEM_QR obrigatório | SEC-034 | `RedeemService`, `RedeemRequest`, `RedeemController` | 🔴 | Médio-Alto (fluxo de resgate/PWA) | **Propor antes** |
-| FIX-24 | **P3** | Validação de regra de programa (`@Min(1)` em `ruleTotalStamps`, etc.) | SEC-035 | `CreateProgramRequest`/`UpdateProgramRequest` | 🟢 | Baixo | Pronta p/ aplicar |
+| FIX | Sev. | Achado | Correção proposta | Arquivos | Risco | Status |
+|---|---|---|---|---|---|---|
+| **FIX-02** | 🔴 Crítica | SEC-001/002/004/021 | **Autenticar o cliente** (sessão/JWT próprio pós social-login ou OTP) e **escopar `/api/cards/**`, `/api/qr/**`, `login-or-register` ao titular** | `SecurityConfig`, `CardsController`, `QrCodeController`, `CardService`, novo fluxo de sessão de cliente, **frontend** | **Alto** (contrato + PWA) | **Proposto** |
+| **FIX-01** | 🔴 Alta | SEC-003 (+028/005/011) | **Rotacionar** JWT/HMAC/DB; **remover fallbacks** de segredo; criar **`application-prod.yaml`** (Swagger/`show-sql` off, sem default sensível); fixar `SPRING_PROFILES_ACTIVE=prod`; limpar histórico git (BFG) | `application*.yaml`, novo `application-prod.yaml`, env/GitHub Secrets, systemd | Médio (rotação invalida JWTs) | **Proposto** |
+| **FIX-03** | 🔴 Alta | SEC-020 (+017 cross-tenant) | **Escopar endpoints ADMIN ao merchant do token** (validar `merchantId(path/body) == token`); `setPin` só para staff do mesmo merchant; papel `PLATFORM_ADMIN` para `createMerchant` | `MerchantController`/services, `StaffService`, `AdminController`, `SecurityUtils` | **Alto** (autorização) | **Proposto** |
+| **FIX-23** | 🟡 Alta* | SEC-034 | Resgate: exigir PIN por **política de merchant/programa** (não por `locationId`) e/ou **token REDEEM_QR obrigatório** | `RedeemService`, `RedeemRequest`, `RedeemController` | Médio-Alto (fluxo de resgate/PWA) | **Proposto** |
+
+\* SEC-034 é Média no relatório, mas listada aqui por ser **impacto financeiro direto** e tocar o fluxo de resgate.
+
+**Sequência sugerida para o bloco crítico:** FIX-01 (destrava segredo/profile) → FIX-03 (isolamento entre lojistas) → FIX-02 (auth de cliente, maior obra, coordena com o PWA) → FIX-23 (resgate).
 
 ---
 
-## 2. Quick wins — pequenas e seguras (posso aplicar mediante autorização)
+## 2. Próximas (Médias — 🟡, propor/planejar)
 
-Sem impacto em autenticação/autorização/contrato; reduzem risco com baixo custo:
+| FIX | Achado | Correção | Arquivos | Risco | Status |
+|---|---|---|---|---|---|
+| FIX-04 | SEC-006/017/032 | Rate limiting/anti-automação (login, cadastro, social, cards/qr); lockout de PIN; limite de tamanho de requisição | filtro/bucket (Bucket4j), `RedeemService`/`StaffService`, config | Médio | Proposto |
+| FIX-05 | SEC-018 | MFA (TOTP) para `ADMIN` | `staff_users`(+col), `AuthService`, **frontend** | Alto | Proposto |
+| FIX-08 | SEC-008 | Login anti-enumeração (respostas uniformes p/ inexistente/inativo/sem vínculo) | `AuthService`, `GlobalExceptionHandler` | Médio (muda corpo de erro/contrato) | **Proposto** (auth) |
+| FIX-11 | SEC-012 | JWT: `iss`/`aud`, TTL menor, revogação/idle, logout | `JwtService`, filtro, `AuthService`, **frontend** | Médio-Alto | Proposto |
+| FIX-12 | SEC-023/024/025 | Frontend: tirar JWT/PII do `localStorage`; *output encoding*; CSP do PWA | `../carimbai-app` | Médio (frontend) | Proposto (outro repo) |
+| FIX-14 | SEC-013 | Cripto/pseudonimização de `document` em repouso; `sslmode=require` no DB | entidades/migrations, config, infra | Médio (migração) | Proposto |
+| FIX-10 | SEC-026/027 | Logging de auditoria + gestão de logs (retenção/rotação/acesso/mascaramento) | novo `audit`/logback, config | Baixo | Proposto |
 
-- **FIX-09** — remover PII do log do Facebook *(risco nenhum)*.
-- **FIX-06** — handler de erro genérico + `DataIntegrityViolationException` + `include-*=never`.
-- **FIX-07** — validação de entrada (`@Email`/`@Size`/`@Valid`).
-- **FIX-13** — headers (`forward-headers-strategy`, `Referrer-Policy`, HSTS no app).
-- **FIX-15** — CORS por profile.
-- **FIX-16/17** — política de senha e formato de PIN.
-- **FIX-18** — `appsecret_proof` obrigatório.
+---
 
-> Parte do **FIX-01** (criar `application-prod.yaml` com Swagger/show-sql off e
-> **sem** default de segredo) é segura no código; a **rotação** e a configuração
-> das env/GitHub Secrets dependem de você.
+## 3. Baixas / operacionais
 
-## 3. Exigem proposta/design antes (impacto funcional)
+| FIX | Achado | Correção | Risco | Status |
+|---|---|---|---|---|
+| FIX-15 | SEC-030 | CORS por profile (só origem do PWA em prod) | Baixo | **Adiado** (depende de FIX-01) |
+| FIX-19 | SEC-031 | Backups documentados, criptografados, restauração testada | — | Proposto (operacional) |
+| FIX-20 | SEC-010 | Docker não-root, alinhar porta, fixar imagens | Baixo (dev) | Proposto |
+| FIX-21 | SEC-019 | Reset/troca de senha seguro (quando houver provedor de e-mail) | — | Futuro |
+| FIX-22 | SEC-033 | Paginação com tamanho máximo nas listagens | Baixo (muda formato de lista = contrato) | **Proposto** (contrato) |
 
-- **FIX-02** (autenticação de cliente) — redesenha o contrato cliente↔API e o PWA.
-- **FIX-03** (escopo multi-tenant ADMIN) — muda regras de autorização.
-- **FIX-05** (MFA admin) — novo passo de login + tela.
-- **FIX-11** (revogação/refresh/logout do JWT) — muda ciclo de sessão.
-- **FIX-14** (cripto em repouso) — migração de dados existentes.
+---
 
-## 4. Sequência recomendada
+## 4. ✅ Aplicadas (baixo risco, com teste) — Fases 14/15
 
-1. **Agora (quick wins):** FIX-09, FIX-06, FIX-07, FIX-13, FIX-15, FIX-16, FIX-17, FIX-18.
-2. **P0 de segredo/infra:** FIX-01 (rotação + profile prod) — destrava SEC-003/005/011/028 de uma vez.
-3. **P0 de isolamento (com proposta):** FIX-03 (multi-tenant) → FIX-02 (auth de cliente).
-4. **P1:** FIX-04 (rate limit) → FIX-08 (anti-enumeração) → FIX-05 (MFA, proposta).
-5. **P2:** FIX-10 (auditoria) → FIX-11 (JWT) → FIX-12 (frontend) → FIX-14 (cripto/TLS).
-6. **P3/operacional:** FIX-19 (backups), FIX-20 (docker), FIX-21 (reset — feature).
+Implementadas em `src/main` **sem** tocar auth/autz/contrato; cobertas por testes
+unitários (`./mvnw test` → **BUILD SUCCESS, 21/21**). Detalhe e ressalvas em `RETEST_REPORT.md`.
 
-> Dependências: FIX-02/FIX-11/FIX-05 impactam o **frontend** (`../carimbai-app`)
-> e devem ser coordenados com aquele repositório. FIX-01 deve preceder qualquer
-> deploy de produção que ainda dependa do segredo hardcoded.
+| FIX | Achado | Mudança | Teste | Status |
+|---|---|---|---|---|
+| FIX-09 | SEC-015 | Log do Facebook só `statusCode` (sem PII) | inspeção | **Fechado** |
+| FIX-18 | SEC-014 | `appsecret_proof` falha-fechado | inspeção | **Fechado** |
+| FIX-16 | SEC-016 | Política de senha staff + `@Email` + BCrypt(12) | `DtoValidationTest` | **Fechado** |
+| FIX-17 | SEC-017 (formato) | PIN `@Pattern(\d{4,10})` + `@Valid` | `DtoValidationTest` | **Fechado** |
+| FIX-24 | SEC-035 | `@Min(1)`/`@Positive` no programa | `DtoValidationTest` | **Fechado** |
+| FIX-07 | SEC-022 | `@Email`/`@Size`/`@Valid` nos DTOs de cliente | `DtoValidationTest` | **Parcial** (payload de stamp não retipado) |
+| FIX-25 | SEC-023 (backend) | `imageUrl` só `http(s)`/vazio (`@Pattern`) | `DtoValidationTest` | **Fechado** (frontend/CSP segue em FIX-12) |
+| FIX-06 | SEC-007 | Handler `DataIntegrityViolation`→409; validação em mapa; `include-stacktrace/message: never` | inspeção | **Parcial** (sem catch-all `Exception`) |
+| FIX-13 | SEC-029 | `forward-headers-strategy` + HSTS + `Referrer-Policy` | inspeção | **Parcial** (HTTPS/CSP no proxy) |
+
+> **Por que só estas:** as demais quebram autenticação, autorização, banco ou
+> contrato de API e, conforme a regra de ouro, **só estão propostas** (§1–§3).
+
+---
 
 ## 5. Rastreio
 
-Cada `FIX-xx` referencia os `SEC-xxx` correspondentes. Ao implementar, atualizar
-o `Status` aqui e no `SECURITY_REPORT.md`, e registrar o reteste na **Fase 15**
-(`RETEST_REPORT.md`). Casos de teste de regressão em `SECURITY_TEST_CASES.md`.
+Cada `FIX-xx` referencia os `SEC-xxx`. Ao implementar, atualizar o `Status` aqui,
+no `SECURITY_REPORT.md` e registrar o reteste em `RETEST_REPORT.md`. Casos de teste
+de regressão em `SECURITY_TEST_CASES.md` (tornam-se *guards* verdes após cada FIX).
