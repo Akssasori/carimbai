@@ -7,6 +7,7 @@ import com.app.carimbai.security.RateLimitFilter;
 import com.app.carimbai.security.TokenRevocationService;
 import com.app.carimbai.services.JwtService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -26,6 +27,7 @@ import java.util.List;
 
 @Configuration
 @EnableMethodSecurity
+@EnableConfigurationProperties(CorsProperties.class)
 public class SecurityConfig {
 
     private final JwtService jwtService;
@@ -33,19 +35,19 @@ public class SecurityConfig {
     private final CustomerRepository customerRepository;
     private final RateLimitFilter rateLimitFilter;
     private final TokenRevocationService revocationService;
-    private final List<String> allowedOrigins;
+    private final CorsProperties corsProperties;
 
     public SecurityConfig(JwtService jwtService, StaffUserRepository staffUserRepository,
                           CustomerRepository customerRepository,
                           RateLimitFilter rateLimitFilter,
                           TokenRevocationService revocationService,
-                          @Value("${app.cors.allowed-origins}") List<String> allowedOrigins) {
+                          CorsProperties corsProperties) {
         this.jwtService = jwtService;
         this.staffUserRepository = staffUserRepository;
         this.customerRepository = customerRepository;
         this.rateLimitFilter = rateLimitFilter;
         this.revocationService = revocationService;
-        this.allowedOrigins = allowedOrigins;
+        this.corsProperties = corsProperties;
     }
 
     @Bean
@@ -115,7 +117,7 @@ public class SecurityConfig {
         // FIX-15 / SEC-030 — origens vêm da config por profile:
         //  - prod (application-prod.yaml): só o PWA da Vercel.
         //  - dev/local (application.yaml base): localhost + Vercel para conveniência.
-        config.setAllowedOriginPatterns(allowedOrigins);
+        config.setAllowedOriginPatterns(corsProperties.allowedOrigins());
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 
