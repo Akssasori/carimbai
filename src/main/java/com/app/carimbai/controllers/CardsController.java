@@ -10,6 +10,7 @@ import com.app.carimbai.services.StampTokenService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,7 +37,8 @@ public class CardsController {
     }
 
     @Operation(summary = "Cria um novo cartão de fidelidade para um cliente em um programa.",
-               description = "Cria um novo cartão de fidelidade associando um cliente a um programa específico. Retorna 201 se o cartão foi criado, 200 se já existia.")
+               description = "Inscreve um cliente num programa. Ação de STAFF (escaneia o QR de ID do cliente); escopada ao merchant do staff. Retorna 201 se criou, 200 se já existia.")
+    @PreAuthorize("hasAnyAuthority('CASHIER','ADMIN')")
     @PostMapping
     public ResponseEntity<AdminCardResponse> createOrGetCard(@Valid @RequestBody CreateCardRequest request) {
 

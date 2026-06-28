@@ -3,24 +3,19 @@ package com.app.carimbai.services;
 import com.app.carimbai.dtos.login.LoginRequest;
 import com.app.carimbai.dtos.login.LoginResponse;
 import com.app.carimbai.dtos.login.MerchantInfo;
-import com.app.carimbai.dtos.login.RefreshTokenResponse;
-import com.app.carimbai.enums.AuditAction;
-import com.app.carimbai.enums.AuditActorType;
-import com.app.carimbai.execption.LoginRateLimitedException;
+import com.app.carimbai.execption.InvalidCredentialsException;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.core.StaffUserMerchant;
-import com.app.carimbai.repositories.RefreshTokenRepository;
 import com.app.carimbai.repositories.StaffUserMerchantRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
-import com.app.carimbai.utils.SecurityUtils;
+import com.app.carimbai.security.audit.AuditEvent;
+import com.app.carimbai.security.audit.AuditMask;
+import com.app.carimbai.security.audit.AuditService;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.OffsetDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,72 +27,59 @@ public class AuthService {
     private final StaffUserMerchantRepository staffMerchantRepo;
     private final BCryptPasswordEncoder passwordEncoder;
     private final JwtService jwtService;
-    private final AuditService auditService;
-    private final LoginRateLimitService loginRateLimitService;
-    private final RefreshTokenService refreshTokenService;
-    private final PasswordResetTokenService passwordResetTokenService;
-    private final MailService mailService;
-    private final RefreshTokenRepository refreshTokenRepo;
+    private final AuditService audit;
 
-    @Value("${carimbai.app-base-url:http://localhost:5173}")
-    private String appBaseUrl;
+    /**
+     * Hash bcrypt fixo usado quando o e-mail não existe — equaliza o tempo de
+     * resposta com o caminho de senha real (FIX-08 / SEC-008, defesa contra
+     * timing). Inicializado uma vez no {@link #init()}.
+     */
+    private String dummyPasswordHash;
+
+    @PostConstruct
+    void init() {
+        // Codifica algo aleatório nunca-aceito; o custo do bcrypt aqui é o mesmo
+        // que o {@code passwordEncoder.matches} faria com um hash real.
+        this.dummyPasswordHash = passwordEncoder.encode("never-matches-anything");
+    }
 
     public LoginResponse login(LoginRequest request) {
-        // Rate limit antes de qualquer outra coisa: previne brute force.
-        // Se passar, NAO conta como gasto se o login for bem-sucedido (recordSuccess limpa).
-        try {
-            loginRateLimitService.checkOrThrow(request.email());
-        } catch (LoginRateLimitedException ex) {
-            auditService.log(AuditService.AuditEntry.builder()
-                    .action(AuditAction.LOGIN_RATE_LIMITED)
-                    .actorType(AuditActorType.ANONYMOUS)
-                    .success(false)
-                    .details(Map.of(
-                            "email", request.email() != null ? request.email() : "",
-                            "retryAfterSeconds", ex.getRetryAfterSeconds()
-                    ))
-                    .build());
-            throw ex;
-        }
-
+        // FIX-08 / SEC-008 — toda falha vira a MESMA exceção/mensagem; bcrypt
+        // roda sempre (mesmo se user==null/inactive) para que o tempo de resposta
+        // não distinga "e-mail existe?" de "senha errada".
         StaffUser user = staffRepo.findByEmail(request.email()).orElse(null);
 
+        String hashToCheck = (user != null && user.getPasswordHash() != null)
+                ? user.getPasswordHash()
+                : dummyPasswordHash;
+        boolean passwordOk = passwordEncoder.matches(request.password(), hashToCheck);
+
         if (user == null) {
-            auditLoginFailed(null, request.email(), "USER_NOT_FOUND");
-            throw new IllegalArgumentException("Invalid credentials");
+            audit.failure(AuditEvent.STAFF_LOGIN, Map.of("email", AuditMask.email(request.email()), "reason", "not_found"));
+            throw new InvalidCredentialsException();
         }
-
         if (Boolean.FALSE.equals(user.getActive())) {
-            auditLoginFailed(user.getId(), request.email(), "USER_INACTIVE");
-            throw new IllegalStateException("Staff user is inactive");
+            audit.failure(AuditEvent.STAFF_LOGIN, Map.of("staffId", user.getId(), "reason", "inactive"));
+            throw new InvalidCredentialsException();
         }
-
-        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            auditLoginFailed(user.getId(), request.email(), "WRONG_PASSWORD");
-            throw new IllegalArgumentException("Invalid credentials");
+        if (!passwordOk) {
+            audit.failure(AuditEvent.STAFF_LOGIN, Map.of("staffId", user.getId(), "reason", "bad_password"));
+            throw new InvalidCredentialsException();
         }
 
         List<StaffUserMerchant> links = staffMerchantRepo.findByStaffUserIdAndActiveTrue(user.getId());
         if (links.isEmpty()) {
-            auditLoginFailed(user.getId(), request.email(), "NO_ACTIVE_MERCHANT");
-            throw new IllegalStateException("Staff user has no active merchant links");
+            audit.failure(AuditEvent.STAFF_LOGIN, Map.of("staffId", user.getId(), "reason", "no_merchant_link"));
+            throw new InvalidCredentialsException();
         }
 
         StaffUserMerchant activeLink = resolveActiveLink(links, request.merchantId());
 
         String token = jwtService.generateToken(user, activeLink);
-        RefreshTokenService.IssuedToken refresh = refreshTokenService.issue(user, activeLink.getMerchant());
-
-        // Login bem-sucedido: reseta o bucket para nao carregar tentativas anteriores.
-        loginRateLimitService.recordSuccess(request.email());
-
-        auditService.log(AuditService.AuditEntry.builder()
-                .action(AuditAction.LOGIN_SUCCESS)
-                .actorType(AuditActorType.STAFF)
-                .actorId(user.getId())
-                .merchantId(activeLink.getMerchant().getId())
-                .details(Map.of("email", user.getEmail(), "role", activeLink.getRole().name()))
-                .build());
+        audit.success(AuditEvent.STAFF_LOGIN, Map.of(
+                "staffId", user.getId(),
+                "merchantId", activeLink.getMerchant().getId(),
+                "role", activeLink.getRole().name()));
 
         List<MerchantInfo> merchants = links.stream()
                 .map(l -> new MerchantInfo(
@@ -110,7 +92,6 @@ public class AuthService {
 
         return new LoginResponse(
                 token,
-                refresh.rawToken(),
                 user.getId(),
                 activeLink.getMerchant().getId(),
                 activeLink.getRole().name(),
@@ -129,10 +110,15 @@ public class AuthService {
 
         StaffUserMerchant link = staffMerchantRepo
                 .findByStaffUserIdAndMerchantIdAndActiveTrue(staffId, merchantId)
-                .orElseThrow(() -> new IllegalArgumentException("No active link to merchant " + merchantId));
+                .orElseThrow(() -> {
+                    audit.denied(AuditEvent.STAFF_SWITCH_MERCHANT,
+                            Map.of("staffId", staffId, "targetMerchantId", merchantId, "reason", "no_active_link"));
+                    return new IllegalArgumentException("No active link to merchant " + merchantId);
+                });
 
         String token = jwtService.generateToken(user, link);
-        RefreshTokenService.IssuedToken refresh = refreshTokenService.issue(user, link.getMerchant());
+        audit.success(AuditEvent.STAFF_SWITCH_MERCHANT,
+                Map.of("staffId", staffId, "merchantId", merchantId, "role", link.getRole().name()));
 
         List<StaffUserMerchant> allLinks = staffMerchantRepo.findByStaffUserIdAndActiveTrue(staffId);
         List<MerchantInfo> merchants = allLinks.stream()
@@ -146,123 +132,12 @@ public class AuthService {
 
         return new LoginResponse(
                 token,
-                refresh.rawToken(),
                 user.getId(),
                 link.getMerchant().getId(),
                 link.getRole().name(),
                 user.getEmail(),
                 merchants
         );
-    }
-
-    /**
-     * Recebe um refresh token cru, rotaciona e devolve um access + refresh novos.
-     * O cliente substitui ambos no storage. Token antigo fica invalidado.
-     */
-    public RefreshTokenResponse refresh(String rawRefreshToken) {
-        RefreshTokenService.IssuedToken issued = refreshTokenService.rotate(rawRefreshToken);
-
-        // Re-emite access token. Para mantermos o role/merchant atualizados, precisamos
-        // do link ativo correspondente ao merchant do refresh.
-        StaffUser user = issued.persisted().getStaffUser();
-        Long merchantId = issued.persisted().getMerchant().getId();
-        StaffUserMerchant activeLink = staffMerchantRepo
-                .findByStaffUserIdAndMerchantIdAndActiveTrue(user.getId(), merchantId)
-                .orElseThrow(() -> new IllegalStateException(
-                        "Staff " + user.getId() + " no longer has active link to merchant " + merchantId));
-
-        String accessToken = jwtService.generateToken(user, activeLink);
-
-        auditService.log(AuditService.AuditEntry.builder()
-                .action(AuditAction.TOKEN_REFRESHED)
-                .actorType(AuditActorType.STAFF)
-                .actorId(user.getId())
-                .merchantId(merchantId)
-                .build());
-
-        return new RefreshTokenResponse(accessToken, issued.rawToken());
-    }
-
-    /**
-     * Logout: revoga o refresh token. Cliente deve descartar tambem o access JWT.
-     * Idempotente (revoga so se ainda nao foi revogado).
-     */
-    public void logout(String rawRefreshToken) {
-        StaffUser actor = SecurityUtils.getCurrentStaffUserOrNull();
-        refreshTokenService.revoke(rawRefreshToken);
-
-        auditService.log(AuditService.AuditEntry.builder()
-                .action(AuditAction.LOGOUT)
-                .actorType(actor != null ? AuditActorType.STAFF : AuditActorType.ANONYMOUS)
-                .actorId(actor != null ? actor.getId() : null)
-                .build());
-    }
-
-    /**
-     * Inicia o fluxo de reset: gera token, envia email. Sempre "sucesso" do ponto
-     * de vista do cliente — nao revela se o email existe (anti-enumeration).
-     * Audit log diferencia internamente.
-     */
-    @Transactional
-    public void forgotPassword(String email) {
-        StaffUser user = email != null ? staffRepo.findByEmail(email).orElse(null) : null;
-
-        if (user == null || Boolean.FALSE.equals(user.getActive())) {
-            // Loga a tentativa mesmo assim, para investigacao de abuso futuro.
-            Map<String, Object> details = new HashMap<>();
-            details.put("email", email != null ? email : "");
-            details.put("reason", user == null ? "USER_NOT_FOUND" : "USER_INACTIVE");
-            auditService.log(AuditService.AuditEntry.builder()
-                    .action(AuditAction.PASSWORD_RESET_REQUESTED)
-                    .actorType(AuditActorType.ANONYMOUS)
-                    .success(false)
-                    .details(details)
-                    .build());
-            return;
-        }
-
-        PasswordResetTokenService.IssuedToken issued = passwordResetTokenService.issue(user);
-        String resetUrl = appBaseUrl + "/staff/reset-password?token=" + issued.rawToken();
-        mailService.sendPasswordResetEmail(user.getEmail(), null, resetUrl);
-
-        auditService.log(AuditService.AuditEntry.builder()
-                .action(AuditAction.PASSWORD_RESET_REQUESTED)
-                .actorType(AuditActorType.STAFF)
-                .actorId(user.getId())
-                .details(Map.of("email", user.getEmail()))
-                .build());
-    }
-
-    /**
-     * Consome o token e troca a senha. Tambem revoga TODOS os refresh tokens do
-     * staff — qualquer device logado sera forcado a re-login.
-     * Em token invalido/expirado/usado, joga PasswordResetTokenInvalidException → 401.
-     */
-    @Transactional
-    public void resetPassword(String rawToken, String newPassword) {
-        StaffUser staff = passwordResetTokenService.consume(rawToken);
-
-        staff.setPasswordHash(passwordEncoder.encode(newPassword));
-        staffRepo.save(staff);
-
-        int revoked = refreshTokenRepo.revokeAllForStaff(staff.getId(), OffsetDateTime.now());
-
-        auditService.log(AuditService.AuditEntry.builder()
-                .action(AuditAction.PASSWORD_RESET_COMPLETED)
-                .actorType(AuditActorType.STAFF)
-                .actorId(staff.getId())
-                .details(Map.of("revokedRefreshTokens", revoked))
-                .build());
-    }
-
-    private void auditLoginFailed(Long staffId, String email, String reason) {
-        auditService.log(AuditService.AuditEntry.builder()
-                .action(AuditAction.LOGIN_FAILED)
-                .actorType(staffId != null ? AuditActorType.STAFF : AuditActorType.ANONYMOUS)
-                .actorId(staffId)
-                .success(false)
-                .details(Map.of("email", email != null ? email : "", "reason", reason))
-                .build());
     }
 
     private StaffUserMerchant resolveActiveLink(List<StaffUserMerchant> links, Long requestedMerchantId) {

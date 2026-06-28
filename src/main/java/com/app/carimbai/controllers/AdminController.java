@@ -3,8 +3,8 @@ package com.app.carimbai.controllers;
 
 import com.app.carimbai.dtos.admin.SetPinRequest;
 import com.app.carimbai.services.StaffService;
-import com.app.carimbai.utils.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
@@ -26,9 +26,8 @@ public class AdminController {
     @Operation(summary = "Set staff user PIN")
     @PostMapping("/staff-users/{id}/pin")
     public ResponseEntity<?> setStaffPin(@PathVariable Long id,
-                                         @RequestBody SetPinRequest request) {
-        Long callerMerchantId = SecurityUtils.getActiveMerchantId();
-        staffService.setPin(id, request.pin(), callerMerchantId);
+                                         @Valid @RequestBody SetPinRequest request) {
+        staffService.setPin(id, request.pin());
         return ResponseEntity.ok().build();
     }
 

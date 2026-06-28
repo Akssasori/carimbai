@@ -13,6 +13,10 @@ public interface CustomerMapper {
     CreateCustomerResponse customerToCreateCustomerResponse(Customer customer);
 
     @Mapping(target = "customerId", source = "customer.id")
+    @Mapping(target = "token", ignore = true)
+    CustomerLoginResponse customerToCustomerLoginResponse(Customer customer);
+
+    @Mapping(target = "customerId", source = "customer.id")
     @Mapping(target = "token", source = "token")
     CustomerLoginResponse customerToCustomerLoginResponse(Customer customer, String token);
 }

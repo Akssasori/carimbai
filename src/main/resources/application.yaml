@@ -1,52 +1,51 @@
+server:
+  # Reconhece X-Forwarded-* do proxy reverso (HTTPS/HSTS corretos) — SEC-029.
+  forward-headers-strategy: framework
+  # FIX-04 / SEC-032 — limite de tamanho de request (anti-abuso de recurso).
+  # Nossas requests JSON são pequenas (KB); cortar acima evita "billion-laughs".
+  tomcat:
+    max-http-form-post-size: 256KB
+    max-swallow-size: 256KB
+  error:
+    # Não vazar stack trace nem mensagem de exceção nas respostas de erro — SEC-007.
+    include-stacktrace: never
+    include-message: never
 spring:
+  servlet:
+    multipart:
+      max-request-size: 1MB
+      max-file-size: 1MB
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE}
+    active: ${SPRING_PROFILES_ACTIVE:local}
   output:
       ansi:
           enabled: ALWAYS
   application:
       name: carimbai
-  mail:
-    host: ${CARIMBAI_MAIL_HOST}
-    port: ${CARIMBAI_MAIL_PORT}
-    username: ${CARIMBAI_MAIL_USERNAME}
-    password: ${CARIMBAI_RESEND_API_KEY}
-    properties:
-      mail.smtp.auth: true
-      mail.smtp.ssl.enable: true
-      mail.smtp.starttls.enable: false
+# FIX-15 / SEC-030 — CORS por profile. Base inclui localhost + PWA prod (útil
+# em dev/local); application-prod.yaml restringe ao PWA prod.
+app:
+  cors:
+    allowed-origins:
+      - https://carimbai-app.vercel.app
+      - http://localhost:5173
+      - http://localhost:5174
+      - http://localhost:3000
+      - http://localhost:1234
 carimbai:
   hmac-secret: ${CARIMBAI_HMAC_SECRET}
   stamps-needed: 10
   stamps-default-needed: 10
-  timezone: ${CARIMBAI_TIMEZONE:America/Sao_Paulo}
   rate-limit:
     seconds: 120
   qr-ttl:
     seconds: 90
   jwt:
     secret: ${CARIMBAI_JWT_SECRET}
-    expiration-seconds: 3600          # access token staff: 1h (com refresh)
-    customer-expiration-seconds: 2592000
-    refresh-token-days: 30            # refresh token staff: 30d
-  login-rate-limit:
-    max-attempts: 5
-    window-minutes: 15
-  mail:
-    from: ${CARIMBAI_MAIL_FROM}
-    from-name: ${CARIMBAI_MAIL_FROM_NAME}
-  app-base-url: ${CARIMBAI_APP_BASE_URL}
-  password-reset:
-    token-ttl-hours: 1
-  vapid:
-    public-key: ${CARIMBAI_VAPID_PUBLIC_KEY}
-    private-key: ${CARIMBAI_VAPID_PRIVATE_KEY}
-    subject: ${CARIMBAI_VAPID_SUBJECT}
-  notification:
-    remind-at-remaining: 1
+    expiration-seconds: 28800
   oauth:
     google:
-      client-id: ${CARIMBAI_GOOGLE_CLIENT_ID}
+      client-id: ${CARIMBAI_GOOGLE_CLIENT_ID:}
     apple:
       client-id: ${CARIMBAI_APPLE_CLIENT_ID:}
       team-id: ${CARIMBAI_APPLE_TEAM_ID:}

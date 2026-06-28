@@ -7,14 +7,16 @@ import com.app.carimbai.dtos.redeem.RedeemQrResponse;
 import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.repositories.CardRepository;
+import com.app.carimbai.security.audit.AuditEvent;
+import com.app.carimbai.security.audit.AuditService;
 import com.app.carimbai.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -25,6 +27,7 @@ public class CardService {
     private final ProgramService programService;
     private final CustomerService customerService;
     private final StampTokenService stampTokenService;
+    private final AuditService audit;
 
     @Value("${carimbai.stamps-needed:10}")
     private Integer defaultStampsNeeded;
@@ -32,17 +35,13 @@ public class CardService {
 
     @Transactional(readOnly = true)
     public CardListResponse getCustomerCards(Long customerId) {
-        Long authenticatedCustomerId = SecurityUtils.getRequiredCustomerId();
-        if (!authenticatedCustomerId.equals(customerId)) {
-            throw new AccessDeniedException("Customer can only access their own cards");
-        }
-
+        SecurityUtils.requireActiveCustomer(customerId); // SEC-001: só os próprios cartões
         List<Card> cards = cardRepository.findByCustomerIdWithProgram(customerId);
-
+        
         List<CardItemDto> cardDtos = cards.stream()
                 .map(this::toDto)
                 .toList();
-
+        
         return new CardListResponse(cardDtos);
     }
 
@@ -73,13 +72,9 @@ public class CardService {
     public CardResult getOrCreateCard(Long programId, Long customerId) {
 
         var program = programService.findById(programId);
+        // enroll é ação de staff: só inscreve em programa do seu próprio merchant (SEC-020).
+        SecurityUtils.requireActiveMerchant(program.getMerchant().getId());
         var customer = customerService.findById(customerId);
-
-        // O staff só pode inscrever clientes em programas do merchant ativo dele.
-        Long activeMerchantId = SecurityUtils.getActiveMerchantId();
-        if (!program.getMerchant().getId().equals(activeMerchantId)) {
-            throw new AccessDeniedException("Program does not belong to the staff's active merchant");
-        }
 
         return cardRepository.findByProgramIdAndCustomerId(program.getId(), customer.getId())
                 .map(existing -> new CardResult(existing, false))
@@ -88,7 +83,14 @@ public class CardService {
                     c.setProgram(program);
                     c.setCustomer(customer);
                     c.setStampsCount(0);
-                    return new CardResult(cardRepository.save(c), true);
+                    Card saved = cardRepository.save(c);
+                    audit.success(AuditEvent.CARD_ENROLL, Map.of(
+                            "cardId", saved.getId(),
+                            "programId", program.getId(),
+                            "merchantId", program.getMerchant().getId(),
+                            "customerId", customer.getId(),
+                            "staffId", SecurityUtils.getRequiredStaffUser().getId()));
+                    return new CardResult(saved, true);
                 });
     }
 
@@ -100,15 +102,20 @@ public class CardService {
         return cardRepository.save(card);
     }
 
+    /** QR de selo do cliente — exige que o cartão seja do cliente autenticado (SEC-001/002). */
+    @Transactional(readOnly = true)
+    public QrTokenResponse generateCustomerQr(Long cardId) {
+        Card card = cardRepository.findById(cardId)
+                .orElseThrow(() -> new IllegalArgumentException("Card not found: " + cardId));
+        SecurityUtils.requireActiveCustomer(card.getCustomer().getId());
+        return stampTokenService.generateQrCustomer(cardId);
+    }
+
+    @Transactional(readOnly = true)
     public RedeemQrResponse generateRedeemQr(Long cardId) {
         Card card = cardRepository.findById(cardId)
                 .orElseThrow(() -> new IllegalArgumentException("Card not found: " + cardId));
-
-        Long authenticatedCustomerId = SecurityUtils.getRequiredCustomerId();
-        if (!card.getCustomer().getId().equals(authenticatedCustomerId)) {
-            throw new AccessDeniedException("Customer can only generate redeem QR for their own card");
-        }
-
+        SecurityUtils.requireActiveCustomer(card.getCustomer().getId()); // SEC-001/004
         if (card.getStatus() != CardStatus.READY_TO_REDEEM) {
             throw new IllegalArgumentException("Card status is not READY_TO_REDEEM");
         }

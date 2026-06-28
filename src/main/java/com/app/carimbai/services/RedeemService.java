@@ -3,8 +3,6 @@ package com.app.carimbai.services;
 import com.app.carimbai.dtos.RedeemRequest;
 import com.app.carimbai.dtos.RedeemResponse;
 import com.app.carimbai.dtos.TokenPayload;
-import com.app.carimbai.enums.AuditAction;
-import com.app.carimbai.enums.AuditActorType;
 import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.models.core.Location;
 import com.app.carimbai.models.core.StaffUser;
@@ -13,6 +11,8 @@ import com.app.carimbai.models.fidelity.Reward;
 import com.app.carimbai.repositories.CardRepository;
 import com.app.carimbai.repositories.LocationRepository;
 import com.app.carimbai.repositories.RewardRepository;
+import com.app.carimbai.security.audit.AuditEvent;
+import com.app.carimbai.security.audit.AuditService;
 import com.app.carimbai.utils.SecurityUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,7 +22,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -37,7 +36,7 @@ public class RedeemService {
     private final StaffService staffService;
     private final ObjectMapper objectMapper;
     private final StampTokenService stampTokenService;
-    private final AuditService auditService;
+    private final AuditService audit;
 
     @Value("${carimbai.stamps-needed:10}")
     private Integer defaultStampsNeeded;
@@ -49,6 +48,7 @@ public class RedeemService {
         Long activeMerchantId = SecurityUtils.getActiveMerchantId();
 
         Location location = null;
+        boolean requirePin = true; // fail-safe: exige PIN por padrão (SEC-034)
         if (redeemRequest.locationId() != null) {
             location = locationRepo.findById(redeemRequest.locationId())
                     .orElseThrow(() -> new IllegalArgumentException("Location not found: " + redeemRequest.locationId()));
@@ -57,16 +57,18 @@ public class RedeemService {
                 throw new IllegalArgumentException("Location does not belong to staff merchant");
             }
 
-            // lê flags.requirePinOnRedeem (default true)
-            boolean requirePin = isRequirePinOnRedeem(location);
+            // a localização pode optar por não exigir PIN (flags.requirePinOnRedeem, default true)
+            requirePin = isRequirePinOnRedeem(location);
+        }
 
-            if (requirePin) {
-                if (cashierPin == null || cashierPin.isBlank()) {
-                    throw new IllegalArgumentException("Cashier PIN is required for redeem");
-                }
-                // valida PIN do próprio staff logado
-                staffService.validateCashierPin(staffUser.getId(), cashierPin);
+        // PIN avaliado SEMPRE, independentemente de locationId — fecha o bypass do SEC-034
+        // (omitir locationId não pode mais pular o segundo fator).
+        if (requirePin) {
+            if (cashierPin == null || cashierPin.isBlank()) {
+                throw new IllegalArgumentException("Cashier PIN is required for redeem");
             }
+            // valida o PIN do próprio staff logado
+            staffService.validateCashierPin(staffUser.getId(), cashierPin);
         }
 
         Long cardId = (redeemRequest.redeemQr() != null) ? redeemRequest.redeemQr().cardId() : redeemRequest.cardId();
@@ -124,22 +126,13 @@ public class RedeemService {
         card.setStatus(CardStatus.ACTIVE);
         cardRepo.save(card);
 
-        Map<String, Object> details = new HashMap<>();
-        details.put("cardId", card.getId());
-        details.put("rewardId", reward.getId());
-        details.put("programId", program.getId());
-        details.put("rewardName", program.getRewardName());
-        if (location != null) details.put("locationId", location.getId());
-
-        auditService.log(AuditService.AuditEntry.builder()
-                .action(AuditAction.REWARD_REDEEMED)
-                .actorType(AuditActorType.STAFF)
-                .actorId(staffUser.getId())
-                .entityType("Reward")
-                .entityId(reward.getId())
-                .merchantId(activeMerchantId)
-                .details(details)
-                .build());
+        audit.success(AuditEvent.REDEEM, Map.of(
+                "rewardId", reward.getId(),
+                "cardId", card.getId(),
+                "programId", program.getId(),
+                "merchantId", activeMerchantId,
+                "staffId", staffUser.getId(),
+                "withRedeemQr", redeemRequest.redeemQr() != null));
 
         return new RedeemResponse(true,
                 reward.getId(),

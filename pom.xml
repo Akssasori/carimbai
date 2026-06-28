@@ -121,28 +121,11 @@
             <artifactId>nimbus-jose-jwt</artifactId>
             <version>9.40</version>
         </dependency>
-        <!-- Rate limit in-memory para /api/auth/login -->
+        <!-- Rate limiting (FIX-04 / SEC-006) — Bucket4j in-memory (single-node). -->
         <dependency>
             <groupId>com.bucket4j</groupId>
             <artifactId>bucket4j-core</artifactId>
             <version>8.10.1</version>
-        </dependency>
-        <!-- Email transacional (Resend via SMTP relay) -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-mail</artifactId>
-        </dependency>
-        <!-- Web Push (VAPID + envio para FCM/Mozilla/etc) -->
-        <dependency>
-            <groupId>nl.martijndwars</groupId>
-            <artifactId>web-push</artifactId>
-            <version>5.1.1</version>
-        </dependency>
-        <!-- BouncyCastle: dep transitiva do web-push para cripto ECDSA -->
-        <dependency>
-            <groupId>org.bouncycastle</groupId>
-            <artifactId>bcprov-jdk18on</artifactId>
-            <version>1.78.1</version>
         </dependency>
         <!-- boilerplate -->
 		<dependency>

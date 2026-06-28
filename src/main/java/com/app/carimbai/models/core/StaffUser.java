@@ -43,6 +43,11 @@ public class StaffUser {
     @Column(name="pin_hash")
     private String pinHash;
 
+    // Atributo global: pode onboard de novos merchants (POST /api/merchants). SEC-020.
+    @Builder.Default
+    @Column(name = "platform_admin", nullable = false)
+    private Boolean platformAdmin = false;
+
     @OneToMany(mappedBy = "staffUser", fetch = FetchType.LAZY)
     @Builder.Default
     private List<StaffUserMerchant> merchantLinks = new ArrayList<>();

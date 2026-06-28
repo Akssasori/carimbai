@@ -34,5 +34,5 @@ carimbai:
   rate-limit:
     seconds: 120
   jwt:
-    secret: ${CARIMBAI_JWT_SECRET:h9V$3uP!Qk2zA7mF@0sYwE4#RbT8nLjC}
+    secret: ${CARIMBAI_JWT_SECRET:dev-only-insecure-do-not-use-in-prod-change-me}
     expiration-seconds: 28800

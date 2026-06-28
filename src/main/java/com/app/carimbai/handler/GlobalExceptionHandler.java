@@ -3,13 +3,14 @@ package com.app.carimbai.handler;
 import com.app.carimbai.execption.CardReadyToRedeemException;
 import com.app.carimbai.execption.DuplicateIdempotencyKeyException;
 import com.app.carimbai.execption.EmailAlreadyLinkedException;
+import com.app.carimbai.execption.InvalidCredentialsException;
 import com.app.carimbai.execption.InvalidSocialTokenException;
-import com.app.carimbai.execption.LoginRateLimitedException;
 import com.app.carimbai.execption.TooManyStampsException;
-import com.app.carimbai.services.PasswordResetTokenService;
-import com.app.carimbai.services.RefreshTokenService;
+import com.app.carimbai.security.PinLockedException;
+import com.app.carimbai.security.audit.AuditEvent;
+import com.app.carimbai.security.audit.AuditService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -17,10 +18,14 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+    private final AuditService audit;
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<?> badRequest(IllegalArgumentException ex) {
@@ -39,6 +44,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ResponseEntity<?> accessDenied(org.springframework.security.access.AccessDeniedException ex) {
+        // FIX-10 / SEC-026 — registra toda negação central (cross-tenant, posse, @PreAuthorize).
+        audit.denied(AuditEvent.ACCESS_DENIED, Map.of("reason", ex.getClass().getSimpleName()));
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
                 .body(Map.of("error", "FORBIDDEN", "message", ex.getMessage()));
@@ -46,9 +53,23 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<?> validation(MethodArgumentNotValidException ex) {
+        // Retorna apenas campo->mensagem, sem expor a estrutura interna do BindingResult (SEC-007).
+        Map<String, String> fields = new HashMap<>();
+        ex.getBindingResult().getFieldErrors()
+                .forEach(fe -> fields.put(fe.getField(),
+                        fe.getDefaultMessage() != null ? fe.getDefaultMessage() : "inválido"));
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(Map.of("error", "VALIDATION", "message", ex.getBindingResult().toString()));
+                .body(Map.of("error", "VALIDATION", "fields", fields));
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<?> dataIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {
+        // Entrada acima do limite da coluna ou violação de UNIQUE → 409 genérico
+        // (não ecoar a mensagem do banco, que revela coluna/constraint) — SEC-007/022.
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "CONFLICT", "message", "Operação viola uma restrição de dados"));
     }
 
     @ExceptionHandler(TooManyStampsException.class)
@@ -98,29 +119,20 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", "EMAIL_ALREADY_LINKED", "message", ex.getMessage()));
     }
 
-    @ExceptionHandler(RefreshTokenService.RefreshTokenInvalidException.class)
-    public ResponseEntity<?> refreshTokenInvalid(RefreshTokenService.RefreshTokenInvalidException ex) {
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<?> invalidCredentials(InvalidCredentialsException ex) {
+        // FIX-08 / SEC-008 — resposta uniforme: 401 + body fixo (sem mensagem do servidor).
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "REFRESH_TOKEN_INVALID", "message", ex.getMessage()));
+                .body(Map.of("error", "INVALID_CREDENTIALS"));
     }
 
-    @ExceptionHandler(PasswordResetTokenService.PasswordResetTokenInvalidException.class)
-    public ResponseEntity<?> passwordResetTokenInvalid(PasswordResetTokenService.PasswordResetTokenInvalidException ex) {
+    @ExceptionHandler(PinLockedException.class)
+    public ResponseEntity<?> pinLocked(PinLockedException ex) {
+        long retryAfterSec = Math.max(1, ex.getRetryAfter().getSeconds());
         return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "PASSWORD_RESET_TOKEN_INVALID", "message", ex.getMessage()));
-    }
-
-    @ExceptionHandler(LoginRateLimitedException.class)
-    public ResponseEntity<?> loginRateLimited(LoginRateLimitedException ex) {
-        return ResponseEntity
-                .status(HttpStatus.TOO_MANY_REQUESTS)
-                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
-                .body(Map.of(
-                        "error", "RATE_LIMITED",
-                        "message", "Muitas tentativas de login. Tente novamente em alguns instantes.",
-                        "retryAfterSeconds", ex.getRetryAfterSeconds()
-                ));
+                .status(HttpStatus.LOCKED)
+                .header("Retry-After", String.valueOf(retryAfterSec))
+                .body(Map.of("error", "PIN_LOCKED", "retryAfter", retryAfterSec));
     }
 }

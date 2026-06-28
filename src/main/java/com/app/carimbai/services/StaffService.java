@@ -1,14 +1,17 @@
 package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.admin.CreateStaffUserRequest;
-import com.app.carimbai.dtos.staff.admin.UpdateStaffMerchantRequest;
-import com.app.carimbai.enums.AuditAction;
-import com.app.carimbai.enums.AuditActorType;
 import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.core.StaffUserMerchant;
 import com.app.carimbai.repositories.StaffUserMerchantRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
+import com.app.carimbai.security.PinLockedException;
+import com.app.carimbai.security.PinLockoutService;
+import com.app.carimbai.security.audit.AuditEvent;
+import com.app.carimbai.security.audit.AuditMask;
+import com.app.carimbai.security.audit.AuditService;
+import com.app.carimbai.utils.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -17,8 +20,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Service
@@ -29,11 +30,21 @@ public class StaffService {
     private final StaffUserMerchantRepository staffMerchantRepository;
     private final BCryptPasswordEncoder encoder;
     private final MerchantService merchantService;
-    private final AuditService auditService;
+    private final PinLockoutService pinLockoutService;
+    private final AuditService audit;
 
     public StaffUser validateCashierPin(Long cashierId, String pin) {
         if (cashierId == null || pin == null || pin.isBlank())
             throw new IllegalArgumentException("Missing cashierId or PIN");
+
+        // FIX-04 / SEC-017 — checa lockout antes do bcrypt (não vaza "user existe?"
+        // pelo tempo do hash; e evita custo de bcrypt em sequência de brute-force).
+        try {
+            pinLockoutService.assertNotLocked(cashierId);
+        } catch (PinLockedException ex) {
+            audit.event(AuditEvent.CASHIER_PIN_LOCKED, "DENIED", Map.of("staffId", cashierId));
+            throw ex;
+        }
 
         var user = staffUserRepository.findById(cashierId)
                 .orElseThrow(() -> new IllegalArgumentException("Cashier not found"));
@@ -42,41 +53,44 @@ public class StaffService {
             throw new IllegalArgumentException("Cashier not active/authorized");
 
         var pinHash = user.getPinHash();
-        if (pinHash == null || !encoder.matches(pin, pinHash))
+        if (pinHash == null || !encoder.matches(pin, pinHash)) {
+            pinLockoutService.recordFailure(cashierId);
+            audit.failure(AuditEvent.CASHIER_PIN_VALIDATE, Map.of("staffId", cashierId));
             throw new IllegalArgumentException("Invalid cashier PIN");
+        }
 
+        pinLockoutService.recordSuccess(cashierId);
+        audit.success(AuditEvent.CASHIER_PIN_VALIDATE, Map.of("staffId", cashierId));
         return user;
     }
 
-    public void setPin(Long cashierId, String rawPin, Long callerMerchantId) {
+    public void setPin(Long cashierId, String rawPin) {
         if (rawPin == null || rawPin.length() < 4 || rawPin.length() > 10)
             throw new IllegalArgumentException("PIN must be 4..10 digits");
 
-        // O staff alvo precisa estar ativo no merchant ativo de quem está chamando.
-        staffMerchantRepository
-                .findByStaffUserIdAndMerchantIdAndActiveTrue(cashierId, callerMerchantId)
-                .orElseThrow(() -> new AccessDeniedException(
-                        "Target staff does not belong to caller's active merchant"));
+        Long activeMerchantId = SecurityUtils.getActiveMerchantId();
 
         var user = staffUserRepository.findById(cashierId)
                 .orElseThrow(() -> new IllegalArgumentException("Cashier not found"));
 
+        // O caixa alvo precisa pertencer ao merchant ativo do ADMIN (SEC-020).
+        staffMerchantRepository.findByStaffUserIdAndMerchantIdAndActiveTrue(cashierId, activeMerchantId)
+                .orElseThrow(() -> {
+                    audit.denied(AuditEvent.CASHIER_PIN_SET,
+                            Map.of("targetStaffId", cashierId, "activeMerchantId", activeMerchantId));
+                    return new AccessDeniedException("Staff does not belong to the active merchant");
+                });
+
         user.setPinHash(encoder.encode(rawPin));
         staffUserRepository.save(user);
-
-        auditService.log(AuditService.AuditEntry.builder()
-                .action(AuditAction.STAFF_PIN_SET)
-                .actorType(AuditActorType.STAFF)
-                .entityType("StaffUser")
-                .entityId(cashierId)
-                .merchantId(callerMerchantId)
-                .details(Map.of("targetStaffId", cashierId))
-                .build());
+        audit.success(AuditEvent.CASHIER_PIN_SET,
+                Map.of("targetStaffId", cashierId, "merchantId", activeMerchantId));
     }
 
     @Transactional
     public StaffUser createStaffUser(@Valid CreateStaffUserRequest request) {
 
+        SecurityUtils.requireActiveMerchant(request.merchantId()); // SEC-020
         Merchant merchant = merchantService.findById(request.merchantId());
 
         var staffUser = StaffUser.builder()
@@ -101,85 +115,11 @@ public class StaffService {
 
         staffMerchantRepository.save(link);
 
-        auditService.log(AuditService.AuditEntry.builder()
-                .action(AuditAction.STAFF_CREATED)
-                .actorType(AuditActorType.STAFF)
-                .entityType("StaffUser")
-                .entityId(staffUser.getId())
-                .merchantId(merchant.getId())
-                .details(Map.of(
-                        "email", staffUser.getEmail(),
-                        "role", request.role().name()
-                ))
-                .build());
-
+        audit.success(AuditEvent.STAFF_USER_CREATE, Map.of(
+                "newStaffId", staffUser.getId(),
+                "email", AuditMask.email(staffUser.getEmail()),
+                "merchantId", request.merchantId(),
+                "role", request.role().name()));
         return staffUser;
-    }
-
-    @Transactional(readOnly = true)
-    public List<StaffUserMerchant> listStaffByMerchant(Long merchantId) {
-        return staffMerchantRepository.findAllByMerchantIdWithStaff(merchantId);
-    }
-
-    /**
-     * Atualiza role e/ou active no vinculo staff_user_merchants para o (staffId, merchantId).
-     * Guard de auto-lockout: o admin logado nao pode (1) se desativar, (2) se rebaixar para CASHIER.
-     * Isso evita o cenario em que o unico ADMIN do merchant fica trancado fora.
-     */
-    @Transactional
-    public StaffUserMerchant updateStaffInMerchant(Long merchantId,
-                                                   Long staffId,
-                                                   UpdateStaffMerchantRequest request,
-                                                   Long callerStaffId) {
-        StaffUserMerchant link = staffMerchantRepository
-                .findByStaffUserIdAndMerchantId(staffId, merchantId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Staff " + staffId + " has no link with merchant " + merchantId));
-
-        boolean isSelf = callerStaffId != null && callerStaffId.equals(staffId);
-        if (isSelf) {
-            if (Boolean.FALSE.equals(request.active())) {
-                throw new AccessDeniedException("You cannot deactivate yourself in this merchant");
-            }
-            if (request.role() != null && request.role() != link.getRole()
-                    && link.getRole() != null && "ADMIN".equals(link.getRole().name())) {
-                throw new AccessDeniedException("You cannot demote yourself from ADMIN in this merchant");
-            }
-        }
-
-        boolean roleChanged = request.role() != null && request.role() != link.getRole();
-        boolean activeChanged = request.active() != null && !request.active().equals(link.getActive());
-
-        if (request.role() != null) link.setRole(request.role());
-        if (request.active() != null) link.setActive(request.active());
-
-        StaffUserMerchant saved = staffMerchantRepository.save(link);
-
-        if (roleChanged) {
-            auditService.log(AuditService.AuditEntry.builder()
-                    .action(AuditAction.STAFF_ROLE_CHANGED)
-                    .actorType(AuditActorType.STAFF)
-                    .actorId(callerStaffId)
-                    .entityType("StaffUser")
-                    .entityId(staffId)
-                    .merchantId(merchantId)
-                    .details(Map.of("newRole", saved.getRole().name()))
-                    .build());
-        }
-        if (activeChanged) {
-            auditService.log(AuditService.AuditEntry.builder()
-                    .action(Boolean.TRUE.equals(saved.getActive())
-                            ? AuditAction.STAFF_ACTIVATED
-                            : AuditAction.STAFF_DEACTIVATED)
-                    .actorType(AuditActorType.STAFF)
-                    .actorId(callerStaffId)
-                    .entityType("StaffUser")
-                    .entityId(staffId)
-                    .merchantId(merchantId)
-                    .details(new HashMap<>())
-                    .build());
-        }
-
-        return saved;
     }
 }
