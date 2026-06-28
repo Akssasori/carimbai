@@ -92,6 +92,7 @@ public class AuthService {
 
         return new LoginResponse(
                 token,
+                null,
                 user.getId(),
                 activeLink.getMerchant().getId(),
                 activeLink.getRole().name(),
@@ -132,6 +133,7 @@ public class AuthService {
 
         return new LoginResponse(
                 token,
+                null,
                 user.getId(),
                 link.getMerchant().getId(),
                 link.getRole().name(),
