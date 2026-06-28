@@ -10,7 +10,7 @@ import com.app.carimbai.repositories.StaffUserMerchantRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
 import com.app.carimbai.security.audit.AuditEvent;
 import com.app.carimbai.security.audit.AuditMask;
-import com.app.carimbai.security.audit.AuditService;
+import com.app.carimbai.security.audit.AuditSecurityService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -27,7 +27,7 @@ public class AuthService {
     private final StaffUserMerchantRepository staffMerchantRepo;
     private final BCryptPasswordEncoder passwordEncoder;
     private final JwtService jwtService;
-    private final AuditService audit;
+    private final AuditSecurityService audit;
 
     /**
      * Hash bcrypt fixo usado quando o e-mail não existe — equaliza o tempo de

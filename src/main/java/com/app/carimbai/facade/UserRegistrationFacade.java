@@ -5,7 +5,7 @@ import com.app.carimbai.dtos.customer.SocialLoginRequest;
 import com.app.carimbai.models.fidelity.Customer;
 import com.app.carimbai.security.audit.AuditEvent;
 import com.app.carimbai.security.audit.AuditMask;
-import com.app.carimbai.security.audit.AuditService;
+import com.app.carimbai.security.audit.AuditSecurityService;
 import com.app.carimbai.services.CustomerService;
 import com.app.carimbai.services.JwtService;
 import com.app.carimbai.services.social.SocialTokenVerifierRegistry;
@@ -23,7 +23,7 @@ public class UserRegistrationFacade {
     private final CustomerService customerService;
     private final SocialTokenVerifierRegistry verifierRegistry;
     private final JwtService jwtService;
-    private final AuditService audit;
+    private final AuditSecurityService audit;
 
     @Transactional
     public Customer registerUser(CustomerLoginRequest request) {

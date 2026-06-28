@@ -12,7 +12,7 @@ import com.app.carimbai.repositories.CardRepository;
 import com.app.carimbai.repositories.LocationRepository;
 import com.app.carimbai.repositories.RewardRepository;
 import com.app.carimbai.security.audit.AuditEvent;
-import com.app.carimbai.security.audit.AuditService;
+import com.app.carimbai.security.audit.AuditSecurityService;
 import com.app.carimbai.utils.SecurityUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,7 +36,7 @@ public class RedeemService {
     private final StaffService staffService;
     private final ObjectMapper objectMapper;
     private final StampTokenService stampTokenService;
-    private final AuditService audit;
+    private final AuditSecurityService audit;
 
     @Value("${carimbai.stamps-needed:10}")
     private Integer defaultStampsNeeded;

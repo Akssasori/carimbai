@@ -10,7 +10,7 @@ import com.app.carimbai.security.PinLockedException;
 import com.app.carimbai.security.PinLockoutService;
 import com.app.carimbai.security.audit.AuditEvent;
 import com.app.carimbai.security.audit.AuditMask;
-import com.app.carimbai.security.audit.AuditService;
+import com.app.carimbai.security.audit.AuditSecurityService;
 import com.app.carimbai.utils.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +31,7 @@ public class StaffService {
     private final BCryptPasswordEncoder encoder;
     private final MerchantService merchantService;
     private final PinLockoutService pinLockoutService;
-    private final AuditService audit;
+    private final AuditSecurityService audit;
 
     public StaffUser validateCashierPin(Long cashierId, String pin) {
         if (cashierId == null || pin == null || pin.isBlank())

@@ -8,7 +8,7 @@ import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.core.StaffUserMerchant;
 import com.app.carimbai.repositories.StaffUserMerchantRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
-import com.app.carimbai.security.audit.AuditService;
+import com.app.carimbai.security.audit.AuditSecurityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -43,7 +43,7 @@ class AuthServiceLoginTest {
         linkRepo = mock(StaffUserMerchantRepository.class);
         encoder = mock(BCryptPasswordEncoder.class);
         when(encoder.encode("never-matches-anything")).thenReturn("$2a$12$dummy");
-        service = new AuthService(staffRepo, linkRepo, encoder, mock(JwtService.class), mock(AuditService.class));
+        service = new AuthService(staffRepo, linkRepo, encoder, mock(JwtService.class), mock(AuditSecurityService.class));
         service.init();
     }
 
