@@ -3,6 +3,8 @@ package com.app.carimbai.services;
 import com.app.carimbai.dtos.ProgramItemDto;
 import com.app.carimbai.dtos.admin.CreateProgramRequest;
 import com.app.carimbai.dtos.admin.UpdateProgramRequest;
+import com.app.carimbai.enums.AuditAction;
+import com.app.carimbai.enums.AuditActorType;
 import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.models.fidelity.Program;
 import com.app.carimbai.repositories.ProgramRepository;
@@ -11,7 +13,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +23,7 @@ public class ProgramService {
 
     private final ProgramRepository programRepository;
     private final MerchantService merchantService;
+    private final AuditService auditService;
 
     public Program createProgram(Long merchantId, @Valid CreateProgramRequest request) {
 
@@ -41,7 +46,22 @@ public class ProgramService {
                 .active(true)
                 .build();
 
-        return programRepository.save(program);
+        Program saved = programRepository.save(program);
+
+        auditService.log(AuditService.AuditEntry.builder()
+                .action(AuditAction.PROGRAM_CREATED)
+                .actorType(AuditActorType.STAFF)
+                .entityType("Program")
+                .entityId(saved.getId())
+                .merchantId(merchantId)
+                .details(Map.of(
+                        "name", saved.getName(),
+                        "ruleTotalStamps", saved.getRuleTotalStamps(),
+                        "rewardName", saved.getRewardName() != null ? saved.getRewardName() : ""
+                ))
+                .build());
+
+        return saved;
     }
 
     public Program updateProgram(Long merchantId, Long programId, @Valid UpdateProgramRequest request) {
@@ -66,7 +86,24 @@ public class ProgramService {
         if (request.imageUrl() != null) program.setImageUrl(request.imageUrl());
         if (request.sortOrder() != null) program.setSortOrder(request.sortOrder());
 
-        return programRepository.save(program);
+        Program saved = programRepository.save(program);
+
+        Map<String, Object> details = new HashMap<>();
+        if (request.name() != null) details.put("name", saved.getName());
+        if (request.active() != null) details.put("active", saved.getActive());
+        if (request.ruleTotalStamps() != null) details.put("ruleTotalStamps", saved.getRuleTotalStamps());
+        if (request.rewardName() != null) details.put("rewardName", saved.getRewardName());
+
+        auditService.log(AuditService.AuditEntry.builder()
+                .action(AuditAction.PROGRAM_UPDATED)
+                .actorType(AuditActorType.STAFF)
+                .entityType("Program")
+                .entityId(saved.getId())
+                .merchantId(merchantId)
+                .details(details)
+                .build());
+
+        return saved;
     }
 
     public List<Program> findActiveByMerchantId(Long merchantId) {

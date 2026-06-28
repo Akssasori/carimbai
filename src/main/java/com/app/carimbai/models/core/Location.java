@@ -39,6 +39,9 @@ public class Location {
     @Type(JsonType.class)
     private String flags = "{}";
 
+    @Column(nullable = false)
+    private Boolean active = true;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "merchant_id", nullable = false)
     private Merchant merchant;

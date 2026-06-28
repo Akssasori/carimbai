@@ -18,4 +18,11 @@ public interface CardRepository extends JpaRepository<Card, Long> {
            "WHERE c.customer.id = :customerId " +
            "ORDER BY c.createdAt DESC")
     List<Card> findByCustomerIdWithProgram(@Param("customerId") Long customerId);
+
+    @Query("""
+      select count(distinct c.customer.id)
+      from Card c
+      where c.program.merchant.id = :merchantId
+    """)
+    long countDistinctCustomersByMerchant(@Param("merchantId") Long merchantId);
 }
