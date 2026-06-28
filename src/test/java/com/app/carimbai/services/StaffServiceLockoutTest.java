@@ -5,7 +5,7 @@ import com.app.carimbai.repositories.StaffUserMerchantRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
 import com.app.carimbai.security.PinLockedException;
 import com.app.carimbai.security.PinLockoutService;
-import com.app.carimbai.security.audit.AuditService;
+import com.app.carimbai.security.audit.AuditSecurityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -40,7 +40,7 @@ class StaffServiceLockoutTest {
         var merchantService = mock(MerchantService.class);
         encoder = mock(BCryptPasswordEncoder.class);
         lockout = new PinLockoutService(); // real, in-memory
-        service = new StaffService(staffRepo, linkRepo, encoder, merchantService, lockout, mock(AuditService.class));
+        service = new StaffService(staffRepo, linkRepo, encoder, merchantService, lockout, mock(AuditSecurityService.class));
 
         var staff = StaffUser.builder().id(10L).pinHash("HASH").active(true).build();
         when(staffRepo.findById(10L)).thenReturn(Optional.of(staff));

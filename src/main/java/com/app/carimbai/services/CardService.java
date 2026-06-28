@@ -8,7 +8,7 @@ import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.repositories.CardRepository;
 import com.app.carimbai.security.audit.AuditEvent;
-import com.app.carimbai.security.audit.AuditService;
+import com.app.carimbai.security.audit.AuditSecurityService;
 import com.app.carimbai.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,7 +27,7 @@ public class CardService {
     private final ProgramService programService;
     private final CustomerService customerService;
     private final StampTokenService stampTokenService;
-    private final AuditService audit;
+    private final AuditSecurityService audit;
 
     @Value("${carimbai.stamps-needed:10}")
     private Integer defaultStampsNeeded;

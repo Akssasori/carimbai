@@ -8,9 +8,8 @@ import com.app.carimbai.execption.InvalidSocialTokenException;
 import com.app.carimbai.execption.TooManyStampsException;
 import com.app.carimbai.security.PinLockedException;
 import com.app.carimbai.security.audit.AuditEvent;
-import com.app.carimbai.security.audit.AuditService;
+import com.app.carimbai.security.audit.AuditSecurityService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -25,7 +24,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class GlobalExceptionHandler {
 
-    private final AuditService audit;
+    private final AuditSecurityService audit;
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<?> badRequest(IllegalArgumentException ex) {

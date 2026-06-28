@@ -5,7 +5,7 @@ import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.repositories.MerchantRepository;
 import com.app.carimbai.security.audit.AuditEvent;
 import com.app.carimbai.security.audit.AuditMask;
-import com.app.carimbai.security.audit.AuditService;
+import com.app.carimbai.security.audit.AuditSecurityService;
 import com.app.carimbai.utils.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +18,7 @@ import java.util.Map;
 public class MerchantService {
 
     private final MerchantRepository merchantRepository;
-    private final AuditService audit;
+    private final AuditSecurityService audit;
 
     public Merchant createMerchant(@Valid CreateMerchantRequest request) {
 

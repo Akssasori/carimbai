@@ -20,7 +20,7 @@ import java.util.Map;
  * deve ser sempre mascarada via {@link AuditMask} antes de virar atributo.
  */
 @Service
-public class AuditService {
+public class AuditSecurityService {
 
     private static final Logger AUDIT = LoggerFactory.getLogger("audit");
 

@@ -22,6 +22,17 @@ spring:
           enabled: ALWAYS
   application:
       name: carimbai
+  # Email transacional via Resend SMTP (FIX-21). Desabilitado em dev se
+  # CARIMBAI_RESEND_API_KEY estiver vazio — MailService.isMailDisabled() captura.
+  mail:
+    host: ${CARIMBAI_MAIL_HOST:smtp.resend.com}
+    port: ${CARIMBAI_MAIL_PORT:465}
+    username: ${CARIMBAI_MAIL_USERNAME:resend}
+    password: ${CARIMBAI_RESEND_API_KEY:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.ssl.enable: true
+      mail.smtp.starttls.enable: false
 # FIX-15 / SEC-030 — CORS por profile. Base inclui localhost + PWA prod (útil
 # em dev/local); application-prod.yaml restringe ao PWA prod.
 app:
@@ -43,6 +54,17 @@ carimbai:
   jwt:
     secret: ${CARIMBAI_JWT_SECRET}
     expiration-seconds: 28800
+  mail:
+    from: ${CARIMBAI_MAIL_FROM:}
+    from-name: ${CARIMBAI_MAIL_FROM_NAME:Carimbai}
+  password-reset:
+    token-ttl-hours: 1
+  vapid:
+    public-key: ${CARIMBAI_VAPID_PUBLIC_KEY:}
+    private-key: ${CARIMBAI_VAPID_PRIVATE_KEY:}
+    subject: ${CARIMBAI_VAPID_SUBJECT:mailto:contato@example.com}
+  notification:
+    remind-at-remaining: 1
   oauth:
     google:
       client-id: ${CARIMBAI_GOOGLE_CLIENT_ID:}
