@@ -29,7 +29,6 @@
 	<properties>
 		<java.version>25</java.version>
         <mapstruct.version>1.6.3</mapstruct.version>
-		<lombok.version>1.18.40</lombok.version>
 		<swagger.version>2.8.9</swagger.version>
 	</properties>
 	<dependencies>
@@ -126,6 +125,22 @@
             <groupId>com.bucket4j</groupId>
             <artifactId>bucket4j-core</artifactId>
             <version>8.10.1</version>
+        </dependency>
+        <!-- Web Push Notifications (VAPID) — PushNotificationService. -->
+        <dependency>
+            <groupId>nl.martijndwars</groupId>
+            <artifactId>web-push</artifactId>
+            <version>5.1.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.78.1</version>
+        </dependency>
+        <!-- Email transacional (FIX-21 / MailService). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
         <!-- boilerplate -->
 		<dependency>

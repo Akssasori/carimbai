@@ -50,7 +50,8 @@ class MerchantScopeAuthzTest {
     void createProgram_crossTenant_denied_andRepoUntouched() {
         ProgramRepository programRepo = mock(ProgramRepository.class);
         MerchantService merchantService = mock(MerchantService.class);
-        ProgramService service = new ProgramService(programRepo, merchantService);
+        ProgramService service = new ProgramService(programRepo, merchantService,
+                mock(com.app.carimbai.services.AuditService.class));
 
         setActiveMerchant(1L); // ADMIN do merchant 1
         var req = new CreateProgramRequest("P", 10, null, null, null, null, null, null, null, null, null);

@@ -66,14 +66,6 @@ public class SecurityUtils {
         return customer;
     }
 
-    public static Long getRequiredCustomerId() {
-        Customer customer = getCurrentCustomerOrNull();
-        if (customer == null) {
-            throw new AccessDeniedException("No authenticated customer");
-        }
-        return customer.getId();
-    }
-
     /**
      * Garante que o recurso pertence ao cliente autenticado. Lança
      * {@link AccessDeniedException} (→403) em acesso a dados de outro cliente. SEC-001.
