@@ -7,25 +7,17 @@ import com.app.carimbai.repositories.AuditLogRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Map;
 
-/**
- * Centraliza escrita de eventos no audit log (`ops.audit_log`).
- *
- * Pontos importantes:
- * - Falha de gravacao do audit log NAO deve quebrar a operacao de negocio.
- *   Por isso engole excecoes e apenas loga via SLF4J.
- * - Captura IP e User-Agent automaticamente quando ha HttpServletRequest no
- *   contexto. Em jobs/background, esses campos ficam null.
- */
 @Service
 @RequiredArgsConstructor
 public class AuditService {
@@ -34,12 +26,14 @@ public class AuditService {
 
     private final AuditLogRepository auditRepo;
     private final ObjectMapper objectMapper;
-
-    @Autowired(required = false)
-    private HttpServletRequest request;
+    private final ObjectProvider<HttpServletRequest> requestProvider;
 
     public void log(AuditAction action, AuditActorType actorType, Long actorId) {
-        log(AuditEntry.builder().action(action).actorType(actorType).actorId(actorId).build());
+        log(AuditEntry.builder()
+                .action(action)
+                .actorType(actorType)
+                .actorId(actorId)
+                .build());
     }
 
     public void log(AuditEntry entry) {
@@ -59,14 +53,16 @@ public class AuditService {
 
             auditRepo.save(auditLog);
         } catch (Exception e) {
-            // Audit log nao deve nunca quebrar a operacao de negocio.
             log.warn("Falha ao gravar audit log (action={}, actor={}:{}): {}",
                     entry.action, entry.actorType, entry.actorId, e.getMessage());
         }
     }
 
     private String serializeDetails(Map<String, Object> details) {
-        if (details == null || details.isEmpty()) return "{}";
+        if (details == null || details.isEmpty()) {
+            return "{}";
+        }
+
         try {
             return objectMapper.writeValueAsString(details);
         } catch (JsonProcessingException e) {
@@ -76,20 +72,34 @@ public class AuditService {
     }
 
     private InetAddress resolveIp() {
-        if (request == null) return null;
+        HttpServletRequest request = requestProvider.getIfAvailable();
+
+        if (request == null) {
+            return null;
+        }
+
         try {
             String forwarded = request.getHeader("X-Forwarded-For");
-            String raw = (forwarded != null && !forwarded.isBlank())
+
+            String rawIp = forwarded != null && !forwarded.isBlank()
                     ? forwarded.split(",")[0].trim()
                     : request.getRemoteAddr();
-            return raw != null && !raw.isBlank() ? InetAddress.getByName(raw) : null;
+
+            return rawIp != null && !rawIp.isBlank()
+                    ? InetAddress.getByName(rawIp)
+                    : null;
         } catch (UnknownHostException | IllegalStateException e) {
             return null;
         }
     }
 
     private String resolveUserAgent() {
-        if (request == null) return null;
+        HttpServletRequest request = requestProvider.getIfAvailable();
+
+        if (request == null) {
+            return null;
+        }
+
         try {
             return request.getHeader("User-Agent");
         } catch (IllegalStateException e) {
@@ -97,7 +107,7 @@ public class AuditService {
         }
     }
 
-    @lombok.Builder
+    @Builder
     public static class AuditEntry {
         public AuditAction action;
         public AuditActorType actorType;
