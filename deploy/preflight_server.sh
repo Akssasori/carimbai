@@ -20,6 +20,7 @@ import pathlib
 import subprocess
 import sys
 import urllib.request
+import urllib.parse
 import zipfile
 
 pid = int(sys.argv[1])
@@ -47,8 +48,46 @@ with zipfile.ZipFile(jar) as archive:
     for line in manifest.splitlines():
         if line.startswith(('Spring-Boot-Version:', 'Build-Jdk-Spec:')):
             print(line)
-with urllib.request.urlopen('http://127.0.0.1:1234/actuator/health', timeout=10) as response:
+port = int(env.get('SERVER_PORT', '1234'))
+if not 1 <= port <= 65535:
+    raise SystemExit('service.health=REPROVADO')
+with urllib.request.urlopen(f'http://127.0.0.1:{port}/actuator/health', timeout=10) as response:
     print('local.health=' + str(json.load(response).get('status') == 'UP'))
+url = urllib.parse.urlsplit(env['DB_URL'].removeprefix('jdbc:'))
+if url.scheme != 'postgresql' or not url.hostname or not url.path.strip('/'):
+    raise SystemExit('database.connection=REPROVADO')
+query = urllib.parse.parse_qs(url.query)
+connection = os.environ.copy()
+connection.update(PGHOST=url.hostname, PGPORT=str(url.port or 5432),
+                  PGDATABASE=urllib.parse.unquote(url.path.lstrip('/')),
+                  PGUSER=env['DB_USERNAME'], PGPASSWORD=env['DB_PASSWORD'],
+                  PGSSLMODE=env.get('DB_SSL_MODE', query.get('sslmode', ['require'])[0]),
+                  PGCONNECT_TIMEOUT='10')
+checks = {
+    'version': "SELECT current_setting('server_version_num')::int / 10000 = 16",
+    'tls': 'SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()',
+    'migrations': 'SELECT count(*)>0 AND bool_and(success) FROM public.flyway_schema_history',
+    'social_integrity': '''SELECT NOT EXISTS (
+        SELECT 1 FROM fidelity.customers WHERE provider_id IS NOT NULL AND btrim(provider_id)<>''
+        GROUP BY provider_id HAVING count(*)>1)''',
+    'email_integrity': '''SELECT NOT EXISTS (
+        SELECT 1 FROM fidelity.customers WHERE email IS NOT NULL AND btrim(email)<>''
+        GROUP BY lower(btrim(email)) HAVING count(*)>1)''',
+    'merchant_admins': '''SELECT NOT EXISTS (
+        SELECT 1 FROM core.merchants m WHERE m.active AND NOT EXISTS (
+        SELECT 1 FROM core.staff_user_merchants l JOIN core.staff_users s ON s.id=l.staff_user_id
+        WHERE l.merchant_id=m.id AND l.active AND s.active AND l.role='ADMIN'))'''
+}
+passed = True
+for name, sql in checks.items():
+    result = subprocess.run(['psql', '-X', '-At', '-v', 'ON_ERROR_STOP=1', '-c', sql],
+                            env=connection, capture_output=True, text=True, timeout=30)
+    ok = result.returncode == 0 and result.stdout.strip() == 't'
+    print(f'database.{name}=' + ('APROVADO' if ok else 'REPROVADO'))
+    passed = passed and ok
+if not passed:
+    raise SystemExit(1)
+print('logs.directory=' + ('APROVADO' if pathlib.Path('/var/log/carimbai').is_dir() else 'REPROVADO'))
 PY
 if command -v docker >/dev/null 2>&1; then
   docker ps --format 'container.image={{.Image}} state={{.State}}'
