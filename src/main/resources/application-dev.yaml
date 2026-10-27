@@ -7,9 +7,10 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: true
   datasource:
-    url: jdbc:postgresql://127.0.0.1:5433/carimbai
-    username: appuser
-    password: coti
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: ${DB_DRIVER}
   jpa:
     hibernate:
       ddl-auto: none
