@@ -20,7 +20,7 @@
     </appender>
 
     <springProfile name="prod">
-        <springProperty scope="context" name="LOG_DIR" source="logging.file.path" defaultValue="${LOG_DIR:-/var/log/carimbai}"/>
+        <property name="LOG_DIR" value="${LOG_DIR:-/var/log/carimbai}"/>
 
         <appender name="APP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
             <file>${LOG_DIR}/application.log</file>

@@ -1,0 +1,32 @@
+name: Read-only Startup Diagnostics
+
+on:
+  push:
+    branches: [codex/prelaunch-validation]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sanitized startup diagnosis
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$SSH_HOST" = '76.13.224.251'
+          umask 077
+          key="$RUNNER_TEMP/carimbai-diagnostics-key"
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$key"
+          ssh -T -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o ConnectTimeout=30 \
+            -o UserKnownHostsFile=deploy/production_known_hosts \
+            "$SSH_USER@$SSH_HOST" 'python3 -' < deploy/startup_diagnostics.py
