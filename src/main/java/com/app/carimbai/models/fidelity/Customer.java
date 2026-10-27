@@ -35,4 +35,15 @@ public class Customer {
     private String providerId;
     @Column(length = 120)
     private String name;
+
+    @Builder.Default @Column(nullable=false)
+    private Boolean active=true;
+    @Builder.Default @Column(name="token_version",nullable=false)
+    private Long tokenVersion=0L;
+    @Builder.Default @Column(name="privacy_key",nullable=false)
+    private java.util.UUID privacyKey=java.util.UUID.randomUUID();
+    @Column(name="profile_updated_at") private java.time.Instant profileUpdatedAt;
+    @Builder.Default @Column(name="push_enabled",nullable=false) private Boolean pushEnabled=false;
+    @Column(name="push_notice_version") private String pushNoticeVersion;
+    @Column(name="push_updated_at") private java.time.Instant pushUpdatedAt;
 }

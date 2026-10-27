@@ -12,13 +12,13 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.io.UnsupportedEncodingException;
+import org.springframework.web.util.HtmlUtils;
 
 /**
  * Envia emails transacionais. Hoje so o de reset de senha.
  *
- * Comportamento "silencioso" se SMTP nao configurado: em vez de quebrar, loga
- * WARN com o conteudo do email. Isso permite rodar local sem credenciais Resend
- * e mesmo assim usar o fluxo (admin copia o link do log).
+ * Sem SMTP configurado retorna false. Tokens, links e destinatarios nunca
+ * sao registrados em log; falhas de envio geram somente um evento generico.
  */
 @Service
 @RequiredArgsConstructor
@@ -37,12 +37,10 @@ public class MailService {
     @Value("${spring.mail.password:}")
     private String smtpPassword;
 
-    public void sendPasswordResetEmail(String toEmail, String recipientName, String resetUrl) {
+    public boolean sendPasswordResetEmail(String toEmail, String recipientName, String resetUrl) {
         if (isMailDisabled()) {
-            log.warn("Mail nao configurado (CARIMBAI_RESEND_API_KEY/CARIMBAI_MAIL_FROM vazios). " +
-                            "Reset link para {} (copie manualmente em dev): {}",
-                    toEmail, resetUrl);
-            return;
+            log.warn("Password recovery mail is not configured");
+            return false;
         }
 
         try {
@@ -55,14 +53,18 @@ public class MailService {
             helper.setText(buildHtml(recipientName, resetUrl), true);
 
             mailSender.send(message);
-            log.info("Email de reset enviado para {}", toEmail);
+            log.info("Password recovery mail delivered");
+            return true;
         } catch (MessagingException | UnsupportedEncodingException e) {
             // Engole a falha: usuario pode pedir reset de novo. Audit log capta a tentativa.
-            log.error("Falha ao enviar email de reset para {}: {}", toEmail, e.getMessage(), e);
+            log.error("Password recovery mail could not be created");
         } catch (org.springframework.mail.MailException e) {
-            log.error("Erro do JavaMailSender ao enviar para {}: {}", toEmail, e.getMessage(), e);
+            log.error("Password recovery mail delivery failed");
         }
+        return false;
     }
+
+    public boolean isReady() { return !isMailDisabled(); }
 
     private boolean isMailDisabled() {
         return smtpPassword == null || smtpPassword.isBlank()
@@ -70,7 +72,8 @@ public class MailService {
     }
 
     private String buildHtml(String recipientName, String resetUrl) {
-        String safeName = recipientName != null && !recipientName.isBlank() ? recipientName : "Equipe";
+        String safeName = HtmlUtils.htmlEscape(recipientName != null && !recipientName.isBlank() ? recipientName : "Equipe");
+        resetUrl = HtmlUtils.htmlEscape(resetUrl);
         return """
                 <!DOCTYPE html>
                 <html lang="pt-BR">

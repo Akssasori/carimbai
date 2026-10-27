@@ -1,5 +1,14 @@
 # Plano de Correção Priorizado — carimbai
 
+> Atualizacao 2026-10-27: este documento preserva o historico da revisao anterior.
+> O estado atual de TEC-01 a TEC-07 e suas evidencias estao em
+> [IMPLEMENTACAO_PLANO_TECNICO.md](docs/IMPLEMENTACAO_PLANO_TECNICO.md).
+> JWT usa revogacao persistente, refresh/reset e QR seguro foram conectados,
+> JSON tem limite real. Migracao Boot 4 validada: 151 testes e OSV sem alertas
+> conhecidos em 153 dependencias, sem excecoes. Homologacao externa ainda pendente.
+> Veja [relatorio da migracao](docs/IMPLEMENTACAO_MIGRACAO_BOOT_4.md).
+> Nao interpretar contagens antigas ou descricoes in-memory abaixo como estado atual.
+
 > Derivado de `SECURITY_REPORT.md` (SEC-001…SEC-035). **Priorizado por severidade**:
 > as correções **Críticas e Altas vêm primeiro** (§1), depois Média/Baixa (§3).
 > Estado das correções em `RETEST_REPORT.md`.
@@ -16,8 +25,9 @@
 
 ## 1. PRIORIDADE MÁXIMA — Críticas e Altas (🔴 propor antes de implementar)
 
-> Nenhuma destas foi implementada: todas tocam auth/autz/contrato/segredo. São as
-> **bloqueantes para comercializar**.
+> Classificacao historica de risco: essas mudancas exigem autorizacao por tocar
+> auth/autz/contrato/segredo. As implementacoes atuais foram autorizadas e estao
+> documentadas no relatorio de 2026-10-25; a liberacao ainda tem bloqueios registrados.
 
 | FIX | Sev. | Achado | Correção proposta | Arquivos | Risco | Status |
 |---|---|---|---|---|---|---|
@@ -36,10 +46,10 @@
 
 | FIX | Achado | Correção | Arquivos | Risco | Status |
 |---|---|---|---|---|---|
-| FIX-04 | SEC-006/017/032 | Rate limiting/anti-automação (login, cadastro, social, cards/qr); lockout de PIN; limite de tamanho de requisição | filtro/bucket (Bucket4j), `RedeemService`/`StaffService`, config | Médio | ✅ **Implementado** (51/51): `RateLimitFilter` (Bucket4j in-mem) — login/social/login-or-register 10/min, cards 30/min, qr 60/min por IP; `PinLockoutService` 5 erros/10min → 15min; Tomcat 256KB. Multi-nó futuro → Redis |
+| FIX-04 | SEC-006/017/032 | Rate limiting/anti-automação (login, cadastro, social, cards/qr); lockout de PIN; limite de tamanho de requisição | filtro/bucket (Bucket4j), `RedeemService`/`StaffService`, config | Médio | Incremento 2026-10-25: filtro de bytes JSON com 413 e teste chunked real; limites adicionais de refresh/reset/inscricao/push. Limites de abuso continuam por processo; proxy e carga em homologacao pendentes. Ver TEC-07 e reteste atual |
 | FIX-05 | SEC-018 | MFA (TOTP) para `ADMIN` | `staff_users`(+col), `AuthService`, **frontend** | Alto | Proposto |
 | FIX-08 | SEC-008 | Login anti-enumeração (respostas uniformes p/ inexistente/inativo/sem vínculo) | `AuthService`, `GlobalExceptionHandler` | Médio (muda corpo de erro/contrato) | ✅ **Implementado** (70/70): nova `InvalidCredentialsException` → 401 `{"error":"INVALID_CREDENTIALS"}` em **todos** os caminhos (e-mail inexistente, inativo, senha errada, sem vínculo); bcrypt sempre roda (`dummyPasswordHash` em `@PostConstruct`) — anti-timing. Audit ainda registra o motivo real |
-| FIX-11 | SEC-012 | JWT: `iss`/`aud`, TTL menor, revogação/idle, logout | `JwtService`, filtro, `AuthService`, **frontend** | Médio-Alto | ✅ **Implementado (backend)** (64/64): tokens com `iss=carimbai`, `aud=staff/customer`, `jti` único; `parseToken` exige issuer; `TokenRevocationService` in-mem + `POST /api/auth/logout` (idempotente); filtro consulta denylist. **Frontend** (chamar logout no PWA/StaffScreen) → cai dentro do FIX-12 |
+| FIX-11 | SEC-012 | JWT: `iss`/`aud`, TTL menor, revogação/idle, logout | `JwtService`, filtro, `AuthService`, **frontend** | Médio-Alto | Incremento 2026-10-25: validacao de issuer/audience/tipo, permissoes atuais, versao/familia, denylist PostgreSQL, logout Bearer+refresh e PWA adaptado. Testes locais aprovados; reinicio completo e topologia real ainda exigem homologacao. TTL nao foi reduzido nesta entrega |
 | FIX-12 | SEC-023/024/025 | Frontend: tirar JWT/PII do `localStorage`; *output encoding*; CSP do PWA | `../carimbai-app` | Médio (frontend) | **Parcial**: ✅ CSP estrita + HSTS + headers de segurança no `vercel.json`; ✅ logout backend chamado em customer + staff (revoga JWT no servidor); ⚠️ JWT segue em `localStorage` (UX vs migração para cookie httpOnly + CSRF — adiado) |
 | FIX-14 | SEC-013 | Cripto/pseudonimização de `document` em repouso; `sslmode=require` no DB | entidades/migrations, config, infra | Médio (migração) | **Parcial**: `sslmode=require` configurado em `application-prod.yaml` via Hikari (override `DB_SSL_MODE` para loopback). Cripto de `document` em repouso segue pendente |
 | FIX-10 | SEC-026/027 | Logging de auditoria + gestão de logs (retenção/rotação/acesso/mascaramento) | novo `audit`/logback, config | Baixo | ✅ **Implementado** (56/56): `AuditService` + `AuditEvent` + `AuditMask`; eventos plugados em login staff/social, redeem, enroll, PIN, merchant/staff create, access_denied central. `logback-spring.xml` com `audit.log` separado (180d, 5GB) e `application.log` rotativo (14d, 1GB) em prod |
@@ -53,7 +63,7 @@
 | FIX-15 | SEC-030 | CORS por profile (só origem do PWA em prod) | Baixo | ✅ **Implementado**: `app.cors.allowed-origins` injetado por `@Value`; base inclui localhost + Vercel; `application-prod.yaml` restringe a `https://carimbai-app.vercel.app`. Override por env `APP_CORS_ALLOWED_ORIGINS` |
 | FIX-19 | SEC-031 | Backups documentados, criptografados, restauração testada | — | Proposto (operacional) |
 | FIX-20 | SEC-010 | Docker não-root, alinhar porta, fixar imagens | Baixo (dev) | Proposto |
-| FIX-21 | SEC-019 | Reset/troca de senha seguro (quando houver provedor de e-mail) | — | Futuro |
+| FIX-21 | SEC-019 | Reset/troca de senha seguro (quando houver provedor de e-mail) | AuthController, PasswordRecoveryService, PasswordResetTokenService, AuthService, MailService | Codigo conectado e testado localmente em 2026-10-25; SMTP/remetente e entrega real pendentes. Tokens nao sao impressos no console |
 | FIX-22 | SEC-033 | Paginação com tamanho máximo nas listagens | Baixo (muda formato de lista = contrato) | **Proposto** (contrato) |
 
 ---

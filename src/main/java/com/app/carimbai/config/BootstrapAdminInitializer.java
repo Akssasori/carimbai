@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
  * sem este bootstrap o unico jeito de criar o primeiro admin seria INSERT manual no banco.
  */
 @Component
+@org.springframework.context.annotation.Profile("!privacy-restore")
 @RequiredArgsConstructor
 public class BootstrapAdminInitializer implements CommandLineRunner {
 
@@ -63,7 +64,7 @@ public class BootstrapAdminInitializer implements CommandLineRunner {
         }
 
         if (staffRepo.findByEmail(bootstrapAdminEmail).isPresent()) {
-            log.info("Bootstrap: admin {} ja existe, nao faz nada.", bootstrapAdminEmail);
+            log.info("Bootstrap administrator already exists");
             return;
         }
 
@@ -85,9 +86,7 @@ public class BootstrapAdminInitializer implements CommandLineRunner {
                 .build();
         staffMerchantRepo.save(link);
 
-        log.warn("Bootstrap admin criado: email={}, staffId={}, merchantId={}, merchantName={}. " +
-                        "Recomenda-se rotacionar a senha no primeiro login.",
-                bootstrapAdminEmail, admin.getId(), merchant.getId(), merchant.getName());
+        log.warn("Bootstrap administrator created; rotate its password before use");
     }
 
     private Merchant resolveOrCreateMerchant() {

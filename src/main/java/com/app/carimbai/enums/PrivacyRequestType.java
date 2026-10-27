@@ -1,0 +1,5 @@
+package com.app.carimbai.enums;
+public enum PrivacyRequestType {
+    ACCESS, CORRECTION, RESTRICTION, ERASURE, ANONYMIZATION, PORTABILITY,
+    SHARING_INFORMATION, CONSENT_WITHDRAWAL, OTHER
+}

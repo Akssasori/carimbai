@@ -2,7 +2,12 @@ package com.app.carimbai.controllers;
 
 import com.app.carimbai.dtos.admin.CreateCustomerRequest;
 import com.app.carimbai.dtos.admin.CreateCustomerResponse;
-import com.app.carimbai.dtos.customer.CustomerLoginRequest;
+import com.app.carimbai.dtos.customer.CounterCustomerRequest;
+import com.app.carimbai.dtos.customer.CounterCustomerResponse;
+import com.app.carimbai.dtos.customer.EnrollmentQrResponse;
+import com.app.carimbai.services.StampTokenService;
+import com.app.carimbai.utils.SecurityUtils;
+import org.springframework.web.bind.annotation.GetMapping;
 import com.app.carimbai.dtos.customer.CustomerLoginResponse;
 import com.app.carimbai.dtos.customer.SocialLoginRequest;
 import com.app.carimbai.facade.CustomerSession;
@@ -28,6 +33,7 @@ public class CustomerController {
     private final CustomerService customerService;
     private final CustomerMapper customerMapper;
     private final UserRegistrationFacade userRegistrationFacade;
+    private final StampTokenService stampTokenService;
 
     @Operation( summary = "Create a new customer",
             description = "Creates a new customer. Restrito ao PLATFORM_ADMIN (FIX-02 Fase D).")
@@ -42,12 +48,19 @@ public class CustomerController {
     }
 
     @Operation( summary = "Customer Login or Register (staff-only — balcão)",
-            description = "Cadastro/recuperação de cliente por dados informados pelo staff (balcão). "
-                    + "NÃO é self-service do cliente — para isso use social-login. FIX-02 Fase D / SEC-001.")
+            description = "Cria somente cliente novo sem vinculo social; nao consulta nem altera cliente existente. "
+                    + "Inscricao em programa exige QR temporario do cliente autenticado.")
     @PostMapping("/login-or-register")
     @PreAuthorize("hasAnyAuthority('CASHIER','ADMIN','PLATFORM_ADMIN')")
-    public ResponseEntity<CustomerLoginResponse> loginOrRegister(@Valid @RequestBody CustomerLoginRequest request) {
-        return ResponseEntity.ok(customerMapper.customerToCustomerLoginResponse(userRegistrationFacade.registerUser(request)));
+    public ResponseEntity<CounterCustomerResponse> loginOrRegister(@Valid @RequestBody CounterCustomerRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(customerMapper.toCounterResponse(userRegistrationFacade.registerUser(request)));
+    }
+
+    @GetMapping("/me/enrollment-qr")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public EnrollmentQrResponse enrollmentQr() {
+        return stampTokenService.generateEnrollmentQr(SecurityUtils.getRequiredCustomerId());
     }
 
     @Operation(summary = "Customer Social Login",

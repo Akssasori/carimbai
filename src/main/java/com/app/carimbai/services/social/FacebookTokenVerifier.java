@@ -16,7 +16,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
 import java.util.Map;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 @Slf4j
 @Component
@@ -31,7 +32,7 @@ public class FacebookTokenVerifier implements SocialTokenVerifier {
     public FacebookTokenVerifier(OAuthProperties props) {
         this.appSecret = props.facebook() != null ? props.facebook().appSecret() : null;
         this.httpClient = HttpClient.newHttpClient();
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = JsonMapper.builder().build();
     }
 
     @Override
@@ -62,7 +63,7 @@ public class FacebookTokenVerifier implements SocialTokenVerifier {
             Map<String, Object> body = objectMapper.readValue(response.body(), Map.class);
 
             if (body.containsKey("error")) {
-                throw new InvalidSocialTokenException("Token do Facebook inválido: " + body.get("error"));
+                throw new InvalidSocialTokenException("Token do Facebook invalido");
             }
 
             String id = (String) body.get("id");
@@ -79,7 +80,7 @@ public class FacebookTokenVerifier implements SocialTokenVerifier {
         } catch (InvalidSocialTokenException e) {
             throw e;
         } catch (Exception e) {
-            log.warn("Falha ao verificar Facebook token: {}", e.getMessage());
+            log.warn("Facebook token verification failed: {}", e.getClass().getSimpleName());
             throw new InvalidSocialTokenException("Falha ao verificar token do Facebook");
         }
     }
@@ -93,7 +94,7 @@ public class FacebookTokenVerifier implements SocialTokenVerifier {
             return HexFormat.of().formatHex(hash);
         } catch (Exception e) {
             // Falhar fechado: não prosseguir sem o appsecret_proof quando há segredo (SEC-014).
-            log.warn("Falha ao calcular appsecret_proof: {}", e.getMessage());
+            log.warn("Facebook proof generation failed: {}", e.getClass().getSimpleName());
             throw new InvalidSocialTokenException("Falha ao validar token do Facebook");
         }
     }

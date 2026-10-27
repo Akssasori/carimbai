@@ -8,6 +8,7 @@ import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.SignedJWT;
+import com.nimbusds.jose.JWSAlgorithm;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -15,7 +16,6 @@ import java.net.URI;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
@@ -43,13 +43,19 @@ public class AppleTokenVerifier implements SocialTokenVerifier {
     @Override
     public VerifiedSocialIdentity verify(String token) {
         try {
+            if (clientId == null || clientId.isBlank()) {
+                throw new InvalidSocialTokenException("Apple login is not configured");
+            }
             SignedJWT jwt = SignedJWT.parse(token);
+            if (!JWSAlgorithm.RS256.equals(jwt.getHeader().getAlgorithm())) {
+                throw new InvalidSocialTokenException("Invalid Apple algorithm");
+            }
             var claims = jwt.getJWTClaimsSet();
 
             if (!APPLE_ISSUER.equals(claims.getIssuer())) {
                 throw new InvalidSocialTokenException("Apple token com issuer inválido");
             }
-            if (clientId != null && !clientId.isBlank() && !claims.getAudience().contains(clientId)) {
+            if (!claims.getAudience().contains(clientId)) {
                 throw new InvalidSocialTokenException("Apple token com audience inválido");
             }
             Date expiration = claims.getExpirationTime();
@@ -67,7 +73,7 @@ public class AppleTokenVerifier implements SocialTokenVerifier {
                 rsaKey = (RSAKey) jwkSet.getKeyByKeyId(kid);
             }
             if (rsaKey == null) {
-                throw new InvalidSocialTokenException("Chave pública da Apple não encontrada para kid: " + kid);
+                throw new InvalidSocialTokenException("Chave publica da Apple indisponivel");
             }
 
             JWSVerifier verifier = new RSASSAVerifier(rsaKey.toRSAPublicKey());
@@ -79,12 +85,16 @@ public class AppleTokenVerifier implements SocialTokenVerifier {
             String email = claims.getStringClaim("email");
             String name = extractName(claims.getClaim("name"));
 
-            return new VerifiedSocialIdentity(subject, email, name);
+            if (subject == null || subject.isBlank()) {
+                throw new InvalidSocialTokenException("Invalid Apple subject");
+            }
+            return new VerifiedSocialIdentity(subject, email, name,
+                    "true".equals(String.valueOf(claims.getClaim("email_verified"))));
 
         } catch (InvalidSocialTokenException e) {
             throw e;
         } catch (Exception e) {
-            log.warn("Falha ao verificar Apple token: {}", e.getMessage());
+            log.warn("Apple token verification failed: {}", e.getClass().getSimpleName());
             throw new InvalidSocialTokenException("Falha ao verificar token da Apple");
         }
     }

@@ -38,4 +38,9 @@ public class MerchantService {
         return merchantRepository.findById(merchantId)
                 .orElseThrow(() -> new IllegalArgumentException("Merchant not found: " + merchantId));
     }
+
+    public Merchant lockById(Long merchantId) {
+        return merchantRepository.findByIdForUpdate(merchantId)
+                .orElseThrow(() -> new IllegalArgumentException("Merchant not found"));
+    }
 }

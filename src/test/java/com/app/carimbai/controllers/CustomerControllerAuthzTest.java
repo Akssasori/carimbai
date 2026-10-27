@@ -1,7 +1,7 @@
 package com.app.carimbai.controllers;
 
 import com.app.carimbai.dtos.admin.CreateCustomerRequest;
-import com.app.carimbai.dtos.customer.CustomerLoginRequest;
+import com.app.carimbai.dtos.customer.CounterCustomerRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
 
@@ -29,7 +29,7 @@ class CustomerControllerAuthzTest {
 
     @Test
     void loginOrRegister_requiresStaff() throws NoSuchMethodException {
-        Method m = CustomerController.class.getDeclaredMethod("loginOrRegister", CustomerLoginRequest.class);
+        Method m = CustomerController.class.getDeclaredMethod("loginOrRegister", CounterCustomerRequest.class);
         PreAuthorize pre = m.getAnnotation(PreAuthorize.class);
         assertThat(pre).as("loginOrRegister deve ter @PreAuthorize (FIX-02 Fase D)").isNotNull();
         assertThat(pre.value())

@@ -9,6 +9,13 @@ import com.app.carimbai.models.core.StaffUserMerchant;
 import com.app.carimbai.repositories.StaffUserMerchantRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
 import com.app.carimbai.security.audit.AuditSecurityService;
+import com.app.carimbai.security.StaffAccessService;
+import com.app.carimbai.security.TokenRevocationService;
+import com.app.carimbai.repositories.RefreshTokenRepository;
+import com.app.carimbai.repositories.PasswordResetTokenRepository;
+import com.app.carimbai.models.RefreshToken;
+import java.util.UUID;
+import static org.mockito.ArgumentMatchers.any;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -36,6 +43,7 @@ class AuthServiceLoginTest {
     private StaffUserMerchantRepository linkRepo;
     private BCryptPasswordEncoder encoder;
     private AuthService service;
+    private RefreshTokenService refreshService;
 
     @BeforeEach
     void setUp() {
@@ -43,13 +51,19 @@ class AuthServiceLoginTest {
         linkRepo = mock(StaffUserMerchantRepository.class);
         encoder = mock(BCryptPasswordEncoder.class);
         when(encoder.encode("never-matches-anything")).thenReturn("$2a$12$dummy");
-        service = new AuthService(staffRepo, linkRepo, encoder, mock(JwtService.class), mock(AuditSecurityService.class));
+        refreshService = mock(RefreshTokenService.class);
+        when(refreshService.issue(any(), any())).thenReturn(new RefreshTokenService.IssuedToken("refresh",
+                RefreshToken.builder().familyId(UUID.randomUUID()).build()));
+        service = new AuthService(staffRepo, linkRepo, encoder, mock(JwtService.class), mock(AuditSecurityService.class),
+                refreshService, mock(PasswordResetTokenService.class), mock(RefreshTokenRepository.class),
+                mock(PasswordResetTokenRepository.class), mock(TokenRevocationService.class),
+                mock(StaffAccessService.class), mock(LoginRateLimitService.class), mock(PrivacyJournalService.class));
         service.init();
     }
 
     @Test
     void emailNotFound_throwsInvalidCredentials_andStillRunsBcrypt() {
-        when(staffRepo.findByEmail("ghost@x.com")).thenReturn(Optional.empty());
+        when(staffRepo.findByEmailForUpdate("ghost@x.com")).thenReturn(Optional.empty());
         when(encoder.matches("anything", "$2a$12$dummy")).thenReturn(false);
 
         assertThatThrownBy(() -> service.login(new LoginRequest("ghost@x.com", "anything", null)))
@@ -62,7 +76,7 @@ class AuthServiceLoginTest {
     @Test
     void badPassword_throwsInvalidCredentials() {
         var user = StaffUser.builder().id(7L).passwordHash("REAL").active(true).build();
-        when(staffRepo.findByEmail("a@b.com")).thenReturn(Optional.of(user));
+        when(staffRepo.findByEmailForUpdate("a@b.com")).thenReturn(Optional.of(user));
         when(encoder.matches("wrong", "REAL")).thenReturn(false);
 
         assertThatThrownBy(() -> service.login(new LoginRequest("a@b.com", "wrong", null)))
@@ -72,7 +86,7 @@ class AuthServiceLoginTest {
     @Test
     void inactiveUser_throwsInvalidCredentials_sameAsBadPassword() {
         var user = StaffUser.builder().id(7L).passwordHash("REAL").active(false).build();
-        when(staffRepo.findByEmail("a@b.com")).thenReturn(Optional.of(user));
+        when(staffRepo.findByEmailForUpdate("a@b.com")).thenReturn(Optional.of(user));
         when(encoder.matches("right", "REAL")).thenReturn(true);
 
         assertThatThrownBy(() -> service.login(new LoginRequest("a@b.com", "right", null)))
@@ -82,7 +96,7 @@ class AuthServiceLoginTest {
     @Test
     void noActiveMerchantLink_throwsInvalidCredentials() {
         var user = StaffUser.builder().id(7L).passwordHash("REAL").active(true).build();
-        when(staffRepo.findByEmail("a@b.com")).thenReturn(Optional.of(user));
+        when(staffRepo.findByEmailForUpdate("a@b.com")).thenReturn(Optional.of(user));
         when(encoder.matches("right", "REAL")).thenReturn(true);
         when(linkRepo.findByStaffUserIdAndActiveTrue(7L)).thenReturn(List.of());
 
@@ -93,7 +107,7 @@ class AuthServiceLoginTest {
     @Test
     void bcryptCalledOnce_perLogin_evenWhenNotFound() {
         // Defesa: nada mais de bcrypt além do esperado (evita oráculo de duas vias).
-        when(staffRepo.findByEmail("ghost@x.com")).thenReturn(Optional.empty());
+        when(staffRepo.findByEmailForUpdate("ghost@x.com")).thenReturn(Optional.empty());
         when(encoder.matches("x", "$2a$12$dummy")).thenReturn(false);
         try { service.login(new LoginRequest("ghost@x.com", "x", null)); } catch (RuntimeException ignored) {}
         verify(encoder, times(1)).matches("x", "$2a$12$dummy");
@@ -101,11 +115,11 @@ class AuthServiceLoginTest {
 
     @Test
     void successfulLogin_returnsResponse() {
-        var merchant = Merchant.builder().id(3L).name("M").build();
+        var merchant = Merchant.builder().id(3L).name("M").active(true).build();
         var user = StaffUser.builder().id(7L).email("a@b.com").passwordHash("REAL").active(true).build();
         var link = StaffUserMerchant.builder().staffUser(user).merchant(merchant).role(StaffRole.ADMIN)
                 .active(true).isDefault(true).build();
-        when(staffRepo.findByEmail("a@b.com")).thenReturn(Optional.of(user));
+        when(staffRepo.findByEmailForUpdate("a@b.com")).thenReturn(Optional.of(user));
         when(encoder.matches("right", "REAL")).thenReturn(true);
         when(linkRepo.findByStaffUserIdAndActiveTrue(7L)).thenReturn(List.of(link));
 
@@ -113,5 +127,6 @@ class AuthServiceLoginTest {
         assertThat(resp).isNotNull();
         assertThat(resp.merchantId()).isEqualTo(3L);
         assertThat(resp.role()).isEqualTo("ADMIN");
+        assertThat(resp.refreshToken()).isEqualTo("refresh");
     }
 }

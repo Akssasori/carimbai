@@ -4,6 +4,9 @@ import com.app.carimbai.models.RefreshToken;
 import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.repositories.RefreshTokenRepository;
+import com.app.carimbai.repositories.StaffUserRepository;
+import com.app.carimbai.security.StaffAccessService;
+import com.app.carimbai.security.OpaqueTokens;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,13 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.OffsetDateTime;
-import java.util.Base64;
-import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Gerencia o ciclo de vida de refresh tokens do staff.
@@ -41,10 +39,11 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class RefreshTokenService {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-    private static final int TOKEN_BYTES = 32; // 256 bits
-
     private final RefreshTokenRepository refreshRepo;
+    private final StaffUserRepository staffRepo;
+    private final StaffAccessService staffAccess;
+    private final com.app.carimbai.security.NetworkMetadata metadata;
+    private final PrivacyJournalService privacyJournal;
 
     @Value("${carimbai.jwt.refresh-token-days:30}")
     private int refreshTokenDays;
@@ -59,11 +58,16 @@ public class RefreshTokenService {
      */
     @Transactional
     public IssuedToken issue(StaffUser staff, Merchant merchant) {
+        staff = staffRepo.findByIdForUpdate(staff.getId())
+                .orElseThrow(() -> new RefreshTokenInvalidException("Invalid session"));
+        staffAccess.requireActiveLink(staff.getId(), merchant.getId());
         String rawToken = generateRawToken();
         String hash = sha256(rawToken);
 
         RefreshToken entity = RefreshToken.builder()
                 .tokenHash(hash)
+                .familyId(UUID.randomUUID())
+                .tokenVersion(staff.getTokenVersion())
                 .staffUser(staff)
                 .merchant(merchant)
                 .issuedAt(OffsetDateTime.now())
@@ -81,7 +85,7 @@ public class RefreshTokenService {
      * RefreshTokenInvalidException se token nao existe, esta expirado ou ja
      * foi revogado.
      */
-    @Transactional
+    @Transactional(noRollbackFor = RefreshTokenInvalidException.class)
     public IssuedToken rotate(String rawToken) {
         RefreshToken current = findValidOrThrow(rawToken);
 
@@ -90,6 +94,8 @@ public class RefreshTokenService {
         String newHash = sha256(newRaw);
         RefreshToken next = RefreshToken.builder()
                 .tokenHash(newHash)
+                .familyId(current.getFamilyId())
+                .tokenVersion(current.getStaffUser().getTokenVersion())
                 .staffUser(current.getStaffUser())
                 .merchant(current.getMerchant())
                 .issuedAt(OffsetDateTime.now())
@@ -97,7 +103,7 @@ public class RefreshTokenService {
                 .ip(resolveIp())
                 .userAgent(resolveUserAgent())
                 .build();
-        next = refreshRepo.save(next);
+        next = refreshRepo.saveAndFlush(next);
 
         // Revoga o atual com pointer para o sucessor
         current.setRevokedAt(OffsetDateTime.now());
@@ -114,63 +120,64 @@ public class RefreshTokenService {
     public void revoke(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) return;
         String hash = sha256(rawToken);
-        refreshRepo.findByTokenHash(hash).ifPresent(rt -> {
-            if (rt.getRevokedAt() == null) {
-                rt.setRevokedAt(OffsetDateTime.now());
-                refreshRepo.save(rt);
-            }
+        refreshRepo.findStaffIdByTokenHash(hash).ifPresent(staffId -> {
+            staffRepo.findByIdForUpdate(staffId);
+            refreshRepo.findByTokenHashForUpdate(hash).ifPresent(rt ->
+                    {
+                        if (refreshRepo.revokeFamily(rt.getFamilyId(), OffsetDateTime.now())>0)
+                            privacyJournal.sessionInvalidated(com.app.carimbai.enums.AuditActorType.STAFF,staffId);
+                    });
         });
     }
 
+    @Transactional
+    public void revokeFamily(Long staffId, UUID familyId) {
+        if (familyId == null) return;
+        staffRepo.findByIdForUpdate(staffId);
+        refreshRepo.revokeFamily(familyId, OffsetDateTime.now());
+    }
+
     private RefreshToken findValidOrThrow(String rawToken) {
-        if (rawToken == null || rawToken.isBlank()) {
+        if (rawToken == null || rawToken.isBlank() || rawToken.length() > 256) {
             throw new RefreshTokenInvalidException("Refresh token missing");
         }
         String hash = sha256(rawToken);
-        RefreshToken rt = refreshRepo.findByTokenHash(hash)
+        Long staffId = refreshRepo.findStaffIdByTokenHash(hash)
+                .orElseThrow(() -> new RefreshTokenInvalidException("Invalid session"));
+        // Lock staff before tokens, consistently with password reset and logout.
+        StaffUser staff = staffRepo.findByIdForUpdate(staffId)
+                .orElseThrow(() -> new RefreshTokenInvalidException("Invalid session"));
+        RefreshToken rt = refreshRepo.findByTokenHashForUpdate(hash)
                 .orElseThrow(() -> new RefreshTokenInvalidException("Refresh token not found"));
 
         if (rt.getRevokedAt() != null) {
+            if (refreshRepo.revokeFamily(rt.getFamilyId(), OffsetDateTime.now())>0)
+                privacyJournal.sessionInvalidated(com.app.carimbai.enums.AuditActorType.STAFF,staffId);
             throw new RefreshTokenInvalidException("Refresh token already revoked");
         }
         if (rt.getExpiresAt().isBefore(OffsetDateTime.now())) {
             throw new RefreshTokenInvalidException("Refresh token expired");
         }
-        if (Boolean.FALSE.equals(rt.getStaffUser().getActive())) {
+        if (!Boolean.TRUE.equals(staff.getActive()) || !staff.getTokenVersion().equals(rt.getTokenVersion())) {
             throw new RefreshTokenInvalidException("Staff user is inactive");
         }
+        staffAccess.requireActiveLink(staffId, rt.getMerchant().getId());
         return rt;
     }
 
     private String generateRawToken() {
-        byte[] buf = new byte[TOKEN_BYTES];
-        RANDOM.nextBytes(buf);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
+        return OpaqueTokens.generate();
     }
 
     private String sha256(String input) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(Objects.requireNonNullElse(input, "").getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(digest.length * 2);
-            for (byte b : digest) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+        return OpaqueTokens.hash(input);
     }
 
     private InetAddress resolveIp() {
         if (request == null) return null;
         try {
-            String forwarded = request.getHeader("X-Forwarded-For");
-            String raw = (forwarded != null && !forwarded.isBlank())
-                    ? forwarded.split(",")[0].trim()
-                    : request.getRemoteAddr();
-            return raw != null && !raw.isBlank() ? InetAddress.getByName(raw) : null;
-        } catch (UnknownHostException | IllegalStateException e) {
+            return metadata.ip(request);
+        } catch (IllegalStateException e) {
             return null;
         }
     }
@@ -178,7 +185,7 @@ public class RefreshTokenService {
     private String resolveUserAgent() {
         if (request == null) return null;
         try {
-            return request.getHeader("User-Agent");
+            return metadata.userAgent(request.getHeader("User-Agent"));
         } catch (IllegalStateException e) {
             return null;
         }

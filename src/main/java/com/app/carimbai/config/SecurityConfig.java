@@ -1,10 +1,14 @@
 package com.app.carimbai.config;
 
 import com.app.carimbai.repositories.CustomerRepository;
-import com.app.carimbai.repositories.StaffUserRepository;
 import com.app.carimbai.security.JwtAuthenticationFilter;
 import com.app.carimbai.security.RateLimitFilter;
 import com.app.carimbai.security.TokenRevocationService;
+import com.app.carimbai.security.StaffAccessService;
+import com.app.carimbai.security.JsonRequestSizeFilter;
+import com.app.carimbai.repositories.RefreshTokenRepository;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import com.app.carimbai.services.JwtService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -26,35 +30,45 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 @Configuration
+@org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication(type=org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type.SERVLET)
 @EnableMethodSecurity
+@EnableScheduling
 @EnableConfigurationProperties(CorsProperties.class)
 public class SecurityConfig {
 
     private final JwtService jwtService;
-    private final StaffUserRepository staffUserRepository;
+    private final StaffAccessService staffAccess;
+    private final RefreshTokenRepository refreshTokens;
+    private final JsonRequestSizeFilter jsonRequestSizeFilter;
     private final CustomerRepository customerRepository;
     private final RateLimitFilter rateLimitFilter;
     private final TokenRevocationService revocationService;
     private final CorsProperties corsProperties;
+    private final com.app.carimbai.security.RestorationQuarantineFilter quarantine;
 
-    public SecurityConfig(JwtService jwtService, StaffUserRepository staffUserRepository,
+    public SecurityConfig(JwtService jwtService, StaffAccessService staffAccess,
                           CustomerRepository customerRepository,
                           RateLimitFilter rateLimitFilter,
                           TokenRevocationService revocationService,
-                          CorsProperties corsProperties) {
+                          CorsProperties corsProperties, RefreshTokenRepository refreshTokens,
+                          JsonRequestSizeFilter jsonRequestSizeFilter,
+                          com.app.carimbai.security.RestorationQuarantineFilter quarantine) {
         this.jwtService = jwtService;
-        this.staffUserRepository = staffUserRepository;
+        this.staffAccess = staffAccess;
+        this.refreshTokens = refreshTokens;
+        this.jsonRequestSizeFilter = jsonRequestSizeFilter;
         this.customerRepository = customerRepository;
         this.rateLimitFilter = rateLimitFilter;
         this.revocationService = revocationService;
         this.corsProperties = corsProperties;
+        this.quarantine=quarantine;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(
-                jwtService, staffUserRepository, customerRepository, revocationService);
+                jwtService, staffAccess, customerRepository, revocationService, refreshTokens);
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -67,13 +81,34 @@ public class SecurityConfig {
                         .referrerPolicy(rp -> rp
                                 .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER)))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(errors -> errors
+                        .authenticationEntryPoint((request, response, ex) -> {
+                            response.setStatus(401);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"error\":\"UNAUTHORIZED\"}");
+                        })
+                        .accessDeniedHandler((request, response, ex) -> {
+                            response.setStatus(403);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"error\":\"FORBIDDEN\"}");
+                        }))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/logout",
+                                "/api/auth/refresh", "/api/auth/forgot-password", "/api/auth/reset-password",
+                                "/api/customers/social-login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/notifications/vapid-public-key").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/privacy/notice").permitAll()
+                        .requestMatchers("/api/privacy/admin/**").hasAuthority("PRIVACY_OFFICER")
+                        .requestMatchers("/api/privacy/me/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE,"/api/notifications/subscriptions").hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.POST,"/api/notifications/unsubscribe-device").hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.GET,"/api/notifications/preferences").hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.PUT,"/api/notifications/preferences").hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.POST, "/api/notifications/subscribe").hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.GET, "/api/customers/me/enrollment-qr").hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.GET, "/api/staff/dashboard/metrics", "/api/staff/stamps/recent",
+                                "/api/staff/rewards/recent").hasAnyAuthority("CASHIER", "ADMIN")
                         .requestMatchers(
-                                "/api/auth/login",
-                                // FIX-11: logout aceita token expirado/inválido (idempotente, 204).
-                                "/api/auth/logout",
-                                "/api/customers/social-login",
-                                "/api/staff/login",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
@@ -104,10 +139,32 @@ public class SecurityConfig {
                         .anyRequest().denyAll()
                 )
                 // FIX-04 — rate limit por IP/endpoint ANTES da auth (brute-force em /login).
+                .addFilterBefore(quarantine, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jsonRequestSizeFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    public FilterRegistrationBean<com.app.carimbai.security.RestorationQuarantineFilter> quarantineRegistration(
+            com.app.carimbai.security.RestorationQuarantineFilter filter) {
+        var registration=new FilterRegistrationBean<>(filter); registration.setEnabled(false); return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<RateLimitFilter> rateLimitRegistration(RateLimitFilter filter) {
+        var registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<JsonRequestSizeFilter> jsonLimitRegistration(JsonRequestSizeFilter filter) {
+        var registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean

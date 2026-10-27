@@ -1,4 +1,23 @@
-# Pendências de Privacidade e LGPD — carimbai
+# Pendencias Atuais - 2026-10-26
+
+Situacao vigente: [PLANO_ADEQUACAO_LGPD.md](PLANO_ADEQUACAO_LGPD.md) e
+[implementacao LGPD](docs/privacy/IMPLEMENTACAO_LGPD.md).
+O checklist abaixo fica como **historico superado**, nao como descricao do
+codigo ou parecer juridico vigente.
+
+Continuam pendentes: identidade juridica real (CNPJ atual FICTICIO), responsavel
+e substituto do canal diniz3003@gmail.com, papeis/contratos, bases legais,
+prazos de retencao aprovados, menores, fornecedores/transferencias, evidencia
+de infraestrutura, treinamento e exercicios de incidente/restauracao.
+
+Foram preparados: direitos com protocolo e escopo, correcao/exportacao proprias,
+permissao separada de atendimento, conservacao excepcional, simulacao de expurgo,
+reconciliacao assinada de backups, minimizacao e escolha opcional de push.
+Aviso segue rascunho; execucao destrutiva e descarte automatico continuam
+desabilitados. Tokens bearer continuam acessiveis a JavaScript.
+Modelos/documentacao nao comprovam operacao nem conformidade integral.
+
+## Checklist Historico
 
 > **Fase 14** do `SECURITY_LGPD_PLAN.md` — checklist de **comercialização**.
 > Consolida e completa o que foi iniciado na Fase 8. Baseado no **código e nas

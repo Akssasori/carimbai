@@ -1,8 +1,10 @@
 package com.app.carimbai.services;
 
 import com.app.carimbai.models.PushSubscription;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.app.carimbai.security.PushEndpointPolicy;
+import com.app.carimbai.security.RestrictedPushService;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import nl.martijndwars.webpush.Notification;
@@ -18,7 +20,6 @@ import org.springframework.stereotype.Service;
 import java.security.Security;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 /**
  * Envia push notifications via Web Push Protocol (VAPID).
@@ -36,6 +37,7 @@ public class PushNotificationService {
 
     private final PushSubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
+    private final PushEndpointPolicy endpointPolicy;
 
     @Value("${carimbai.vapid.public-key:}")
     private String vapidPublicKey;
@@ -53,10 +55,10 @@ public class PushNotificationService {
         if (isVapidConfigured()) {
             Security.addProvider(new BouncyCastleProvider());
             try {
-                pushService = new PushService(vapidPublicKey, vapidPrivateKey, vapidSubject);
-                log.info("PushService inicializado. VAPID subject={}", vapidSubject);
+                pushService = new RestrictedPushService(vapidPublicKey, vapidPrivateKey, vapidSubject, endpointPolicy);
+                log.info("PushService initialized");
             } catch (Exception e) {
-                log.error("Falha ao inicializar PushService: {}. Push notifications desabilitadas.", e.getMessage());
+                log.error("Push initialization failed: {}. Notifications disabled.", e.getClass().getSimpleName());
                 pushService = null;
             }
         } else {
@@ -82,6 +84,9 @@ public class PushNotificationService {
 
     private void sendOne(PushSubscription sub, String payload) {
         try {
+            if (!subscriptionService.canSend(sub.getCustomer().getId())) return;
+            endpointPolicy.validateDestination(sub.getEndpoint());
+            endpointPolicy.validateKeys(sub.getP256dh(), sub.getAuth());
             Subscription.Keys keys = new Subscription.Keys(sub.getP256dh(), sub.getAuth());
             Subscription subscription = new Subscription(sub.getEndpoint(), keys);
             Notification notification = new Notification(subscription, payload);
@@ -91,28 +96,24 @@ public class PushNotificationService {
 
             if (statusCode == 404 || statusCode == 410) {
                 // Subscription morta — limpa do banco.
-                log.info("Subscription gone (status={}) para customer={}, endpoint={}. Deletando.",
-                        statusCode, sub.getCustomer().getId(), summarizeEndpoint(sub.getEndpoint()));
+                log.info("Subscription gone (status={}) for customer={}", statusCode, sub.getCustomer().getId());
                 subscriptionService.delete(sub);
             } else if (statusCode >= 400) {
-                log.warn("Push falhou com status={} para customer={}, endpoint={}",
-                        statusCode, sub.getCustomer().getId(), summarizeEndpoint(sub.getEndpoint()));
+                log.warn("Push delivery failed with status={} for customer={}", statusCode, sub.getCustomer().getId());
             }
-        } catch (InterruptedException | ExecutionException e) {
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.error("Erro ao enviar push para customer={}: {}",
-                    sub.getCustomer().getId(), e.getMessage());
+            log.warn("Push delivery interrupted");
         } catch (Exception e) {
-            log.error("Erro inesperado ao enviar push para customer={}: {}",
-                    sub.getCustomer().getId(), e.getMessage(), e);
+            log.warn("Push delivery failed: {}", e.getClass().getSimpleName());
         }
     }
 
     private String serializePayload(String title, String body) {
         try {
             return objectMapper.writeValueAsString(Map.of("title", title, "body", body));
-        } catch (JsonProcessingException e) {
-            log.error("Falha ao serializar payload de push: {}", e.getMessage());
+        } catch (JacksonException e) {
+            log.error("Push payload serialization failed");
             return null;
         }
     }
@@ -130,8 +131,4 @@ public class PushNotificationService {
         return pushService != null;
     }
 
-    private String summarizeEndpoint(String endpoint) {
-        if (endpoint == null) return "";
-        return endpoint.length() > 60 ? endpoint.substring(0, 60) + "..." : endpoint;
-    }
 }

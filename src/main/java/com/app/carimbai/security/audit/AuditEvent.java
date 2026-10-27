@@ -5,6 +5,13 @@ package com.app.carimbai.security.audit;
  * que importa para investigação de incidente, sem virar log de aplicação.
  */
 public enum AuditEvent {
+    PRIVACY_PROFILE_CORRECTED, PRIVACY_REQUEST, PRIVACY_EXPORT, PRIVACY_PREFERENCE, PRIVACY_RETENTION,
+    SESSION_REFRESH,
+    PASSWORD_RESET_REQUEST,
+    PASSWORD_RESET,
+    LOGOUT,
+    STAFF_USER_UPDATE,
+    LOCATION_UPDATE,
     /** Login de staff (e-mail+senha) — SUCCESS/FAILURE. */
     STAFF_LOGIN,
     /** Troca de merchant ativo no token de staff. */

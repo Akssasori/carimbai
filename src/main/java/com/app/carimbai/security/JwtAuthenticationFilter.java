@@ -2,8 +2,9 @@ package com.app.carimbai.security;
 
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.fidelity.Customer;
+import com.app.carimbai.execption.InvalidCredentialsException;
+import com.app.carimbai.repositories.RefreshTokenRepository;
 import com.app.carimbai.repositories.CustomerRepository;
-import com.app.carimbai.repositories.StaffUserRepository;
 import com.app.carimbai.services.JwtService;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -20,21 +21,25 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
+import java.time.OffsetDateTime;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String ATTR_MERCHANT_ID = "activeMerchantId";
 
     private final JwtService jwtService;
-    private final StaffUserRepository staffRepo;
+    private final StaffAccessService staffAccess;
+    private final RefreshTokenRepository refreshTokens;
     private final CustomerRepository customerRepo;
     private final TokenRevocationService revocationService;
 
-    public JwtAuthenticationFilter(JwtService jwtService, StaffUserRepository staffRepo,
+    public JwtAuthenticationFilter(JwtService jwtService, StaffAccessService staffAccess,
                                    CustomerRepository customerRepo,
-                                   TokenRevocationService revocationService) {
+                                   TokenRevocationService revocationService, RefreshTokenRepository refreshTokens) {
         this.jwtService = jwtService;
-        this.staffRepo = staffRepo;
+        this.staffAccess = staffAccess;
+        this.refreshTokens = refreshTokens;
         this.customerRepo = customerRepo;
         this.revocationService = revocationService;
     }
@@ -58,7 +63,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     if ("CUSTOMER".equals(jwtService.extractType(token))) {
                         Long customerId = jwtService.extractCustomerId(token);
                         Customer customer = customerRepo.findById(customerId).orElse(null);
-                        if (customer != null) {
+                        if (customer != null && Boolean.TRUE.equals(customer.getActive())
+                                && customer.getTokenVersion()==jwtService.extractTokenVersion(token)) {
                             var auth = new UsernamePasswordAuthenticationToken(
                                     customer,
                                     Map.of("customerId", customerId, "type", "CUSTOMER"),
@@ -68,29 +74,37 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         }
                     } else {
                         Long staffId = jwtService.extractStaffId(token);
-                        String role = jwtService.extractRole(token);
                         Long merchantId = jwtService.extractMerchantId(token);
+                        var link = staffAccess.requireActiveLink(staffId, merchantId);
+                        StaffUser user = link.getStaffUser();
+                        String role = link.getRole().name();
+                        var familyId = jwtService.extractFamilyId(token);
+                        boolean activeSession = familyId == null || refreshTokens
+                                .existsByFamilyIdAndStaffUserIdAndMerchantIdAndRevokedAtIsNullAndExpiresAtAfter(
+                                        familyId, staffId, merchantId, OffsetDateTime.now());
 
-                        StaffUser user = staffRepo.findById(staffId)
-                                .orElse(null);
-
-                        if (user != null && Boolean.TRUE.equals(user.getActive())) {
+                        if (user.getTokenVersion() == jwtService.extractTokenVersion(token) && activeSession) {
                             var authorities = new ArrayList<SimpleGrantedAuthority>();
                             authorities.add(new SimpleGrantedAuthority(role));
                             // Autoridade global derivada do StaffUser (recarregado a cada request). SEC-020.
                             if (Boolean.TRUE.equals(user.getPlatformAdmin())) {
                                 authorities.add(new SimpleGrantedAuthority("PLATFORM_ADMIN"));
                             }
-                            var auth = new UsernamePasswordAuthenticationToken(
-                                    user, Map.of("merchantId", merchantId, "role", role), authorities
-                            );
+                            if (Boolean.TRUE.equals(user.getPrivacyOfficer())) {
+                                authorities.add(new SimpleGrantedAuthority("PRIVACY_OFFICER"));
+                            }
+                            Map<String, Object> credentials = new HashMap<>();
+                            credentials.put("merchantId", merchantId);
+                            credentials.put("role", role);
+                            if (familyId != null) credentials.put("familyId", familyId);
+                            var auth = new UsernamePasswordAuthenticationToken(user, credentials, authorities);
                             SecurityContextHolder.getContext().setAuthentication(auth);
 
                             request.setAttribute(ATTR_MERCHANT_ID, merchantId);
                         }
                     }
                 }
-            } catch (JwtException | IllegalArgumentException e) {
+            } catch (JwtException | IllegalArgumentException | InvalidCredentialsException e) {
                 SecurityContextHolder.clearContext();
             }
         }

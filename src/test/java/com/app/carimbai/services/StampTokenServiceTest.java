@@ -106,4 +106,19 @@ class StampTokenServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("expired");
     }
+
+    @Test
+    void enrollmentProofIsBoundToItsTypeCustomerAndExpiry() {
+        var qr = service.generateEnrollmentQr(123L);
+        assertThat(qr.type()).isEqualTo("CUSTOMER_ID");
+        assertThatThrownBy(() -> service.validateAndConsume(new TokenPayload(
+                "CUSTOMER_ENROLLMENT", 999L, qr.nonce(), qr.exp(), qr.sig())))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.validateAndConsume(new TokenPayload(
+                "CUSTOMER_QR", 123L, qr.nonce(), qr.exp(), qr.sig())))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.validateAndConsume(new TokenPayload(
+                "CUSTOMER_ENROLLMENT", 123L, qr.nonce(), Long.MAX_VALUE, qr.sig())))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Invalid token expiry");
+    }
 }

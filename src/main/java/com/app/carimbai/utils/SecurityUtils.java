@@ -7,8 +7,18 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.Map;
+import java.util.UUID;
 
 public class SecurityUtils {
+
+    public static UUID getActiveFamilyIdOrNull() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getCredentials() instanceof Map<?, ?> values
+                && values.get("familyId") instanceof UUID familyId) {
+            return familyId;
+        }
+        return null;
+    }
 
     public static StaffUser getCurrentStaffUserOrNull() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

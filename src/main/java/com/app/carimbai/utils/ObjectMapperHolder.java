@@ -1,10 +1,11 @@
 package com.app.carimbai.utils;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 public class ObjectMapperHolder {
 
-    public static final ObjectMapper INSTANCE = new ObjectMapper();
+    public static final ObjectMapper INSTANCE = JsonMapper.builder().build();
 
     private ObjectMapperHolder() {}
 }

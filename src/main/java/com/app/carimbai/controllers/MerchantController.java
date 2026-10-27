@@ -8,6 +8,16 @@ import com.app.carimbai.dtos.admin.CreateMerchantResponse;
 import com.app.carimbai.dtos.admin.CreateProgramRequest;
 import com.app.carimbai.dtos.admin.CreateProgramResponse;
 import com.app.carimbai.dtos.admin.UpdateProgramRequest;
+import com.app.carimbai.dtos.staff.admin.AdminProgramItem;
+import com.app.carimbai.dtos.staff.admin.LocationItem;
+import com.app.carimbai.dtos.staff.admin.StaffItem;
+import com.app.carimbai.dtos.staff.admin.UpdateLocationRequest;
+import com.app.carimbai.dtos.staff.admin.UpdateStaffMerchantRequest;
+import com.app.carimbai.services.StaffService;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.validation.annotation.Validated;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 import com.app.carimbai.mappers.LocationMapper;
 import com.app.carimbai.mappers.MerchantMapper;
 import com.app.carimbai.mappers.ProgramMapper;
@@ -34,6 +44,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/merchants")
 @RequiredArgsConstructor
+@Validated
 public class MerchantController {
 
     private final LocationService locationService;
@@ -42,6 +53,46 @@ public class MerchantController {
     private final ProgramMapper programMapper;
     private final MerchantService merchantService;
     private final MerchantMapper merchantMapper;
+    private final StaffService staffService;
+
+    @GetMapping("/{merchantId}/admin/programs")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public List<AdminProgramItem> adminPrograms(@PathVariable Long merchantId,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int size) {
+        return programService.listAdminPrograms(merchantId, page, size).stream()
+                .map(programMapper::programToAdminProgramItem).toList();
+    }
+
+    @GetMapping("/{merchantId}/locations")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public List<LocationItem> locations(@PathVariable Long merchantId,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int size) {
+        return locationService.list(merchantId, page, size);
+    }
+
+    @PutMapping("/{merchantId}/locations/{locationId}")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public LocationItem updateLocation(@PathVariable Long merchantId, @PathVariable Long locationId,
+                                      @Valid @RequestBody UpdateLocationRequest request) {
+        return locationService.update(merchantId, locationId, request);
+    }
+
+    @GetMapping("/{merchantId}/staff-users")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public List<StaffItem> staff(@PathVariable Long merchantId,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int size) {
+        return staffService.listStaff(merchantId, page, size);
+    }
+
+    @PatchMapping("/{merchantId}/staff-users/{staffId}")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public StaffItem updateStaff(@PathVariable Long merchantId, @PathVariable Long staffId,
+                                @Valid @RequestBody UpdateStaffMerchantRequest request) {
+        return staffService.updateInMerchant(merchantId, staffId, request);
+    }
 
     // Onboarding de lojista é ação de plataforma, não de um ADMIN de merchant (SEC-020).
     @PreAuthorize("hasAuthority('PLATFORM_ADMIN')")

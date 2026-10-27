@@ -1,0 +1,37 @@
+RASCUNHO TECNICO: nao e um aviso juridico aprovado e nao identifica um controlador real.
+O CNPJ de exemplo nao deve ser usado para comercializacao.
+
+O Carimbai utiliza cadastro e identificacao social para disponibilizar cartoes
+de fidelidade, registrar selos e recompensas e permitir a operacao dos lojistas.
+Os funcionarios utilizam credenciais e vinculos com as lojas. A plataforma
+trata registros de seguranca, sessoes e solicitacoes de privacidade.
+
+Google, Apple ou Facebook participam do login conforme o provedor escolhido.
+O PWA e a API podem utilizar hospedagem, banco, e-mail transacional e provedores
+de push. Contratos, regioes, subcontratados e mecanismos de transferencia ainda
+precisam ser confirmados pelo responsavel do negocio.
+
+O uso do cartao nao exige autorizacao generica para publicidade. Notificacoes
+opcionais de atualizacao do cartao exigem escolha separada; promocionais nao
+estao habilitadas por esta implementacao. O cancelamento deve ser simples.
+
+O titular autenticado pode consultar e corrigir os campos disponiveis, exportar
+seus dados por categoria, registrar solicitacoes e acompanhar os protocolos.
+Representacao, alteracao de identidade de login e dados de lojista pessoa fisica
+exigem verificacao proporcional pelo atendimento. Nao envie documentos ou
+senhas no texto livre das solicitacoes.
+
+Pedidos de bloqueio, eliminacao ou anonimizacao sao analisados antes de qualquer
+acao destrutiva. Eventuais conservacoes precisam de finalidade e justificativa.
+As copias de backup e os fornecedores precisam de procedimento proprio; nao ha
+promessa de exclusao instantanea em todos os sistemas ou armazenamento apenas
+no Brasil. A tabela de temporalidade e a avaliacao de menores ainda estao pendentes.
+
+O navegador mantem apenas as credenciais e identificadores necessarios a sessao;
+as informacoes de perfil nao devem ser persistidas junto com elas. Tokens Bearer
+acessiveis a JavaScript ainda exigem controles contra XSS e dispositivos compartilhados.
+
+Antes da publicacao definitiva, aprovar identidade e responsabilidades do
+controlador, canal, finalidades e bases, retencao, fornecedores, transferencias,
+publico atendido e procedimentos de direitos. A disponibilizacao deste rascunho
+nao comprova conformidade com a LGPD.

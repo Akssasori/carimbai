@@ -48,6 +48,15 @@ public class StaffUser {
     @Column(name = "platform_admin", nullable = false)
     private Boolean platformAdmin = false;
 
+    @Builder.Default
+    @Column(name = "token_version", nullable = false)
+    private Long tokenVersion = 0L;
+
+    @Builder.Default @Column(name="privacy_key",nullable=false)
+    private java.util.UUID privacyKey=java.util.UUID.randomUUID();
+    @Builder.Default @Column(name="privacy_officer",nullable=false)
+    private Boolean privacyOfficer=false;
+
     @OneToMany(mappedBy = "staffUser", fetch = FetchType.LAZY)
     @Builder.Default
     private List<StaffUserMerchant> merchantLinks = new ArrayList<>();

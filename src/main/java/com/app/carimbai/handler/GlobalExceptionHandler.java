@@ -24,6 +24,33 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler({com.app.carimbai.services.RefreshTokenService.RefreshTokenInvalidException.class,
+            com.app.carimbai.services.PasswordResetTokenService.PasswordResetTokenInvalidException.class})
+    public ResponseEntity<?> invalidSession(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "INVALID_CREDENTIALS"));
+    }
+
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<?> unreadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        return ResponseEntity.badRequest().body(Map.of("error", "INVALID_REQUEST"));
+    }
+
+    @ExceptionHandler(org.springframework.core.task.TaskRejectedException.class)
+    public ResponseEntity<?> taskRejected(org.springframework.core.task.TaskRejectedException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("error", "SERVICE_BUSY"));
+    }
+
+    @ExceptionHandler(com.app.carimbai.execption.LoginRateLimitedException.class)
+    public ResponseEntity<?> loginLimited(com.app.carimbai.execption.LoginRateLimitedException ex) {
+        return ResponseEntity.status(429).header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
+                .body(Map.of("error", "RATE_LIMITED"));
+    }
+
+    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+    public ResponseEntity<?> invalidParameters(jakarta.validation.ConstraintViolationException ex) {
+        return ResponseEntity.badRequest().body(Map.of("error", "INVALID_PARAMETERS"));
+    }
+
     private final AuditSecurityService audit;
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -115,7 +142,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> emailAlreadyLinked(EmailAlreadyLinkedException ex) {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
-                .body(Map.of("error", "EMAIL_ALREADY_LINKED", "message", ex.getMessage()));
+                .body(Map.of("error", "EMAIL_ALREADY_LINKED", "message", "Use the verified login provider already linked to this account"));
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)

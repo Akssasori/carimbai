@@ -4,6 +4,11 @@ import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.fidelity.Customer;
 import com.app.carimbai.repositories.CustomerRepository;
 import com.app.carimbai.repositories.StaffUserRepository;
+import com.app.carimbai.repositories.RefreshTokenRepository;
+import com.app.carimbai.models.core.StaffUserMerchant;
+import com.app.carimbai.models.core.Merchant;
+import com.app.carimbai.enums.StaffRole;
+import com.app.carimbai.execption.InvalidCredentialsException;
 import com.app.carimbai.services.JwtService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,14 +36,16 @@ class JwtAuthenticationFilterTest {
     private CustomerRepository customerRepo;
     private TokenRevocationService revocation;
     private JwtAuthenticationFilter filter;
+    private StaffAccessService staffAccess;
 
     @BeforeEach
     void setUp() {
         jwt = mock(JwtService.class);
         staffRepo = mock(StaffUserRepository.class);
         customerRepo = mock(CustomerRepository.class);
-        revocation = new TokenRevocationService(); // real — sem entradas
-        filter = new JwtAuthenticationFilter(jwt, staffRepo, customerRepo, revocation);
+        revocation = mock(TokenRevocationService.class);
+        staffAccess = mock(StaffAccessService.class);
+        filter = new JwtAuthenticationFilter(jwt, staffAccess, customerRepo, revocation, mock(RefreshTokenRepository.class));
         when(jwt.isExpired("tok")).thenReturn(false);
         when(jwt.extractJti("tok")).thenReturn("jti-1");
     }
@@ -64,6 +71,9 @@ class JwtAuthenticationFilterTest {
         when(jwt.extractRole("tok")).thenReturn("ADMIN");
         when(jwt.extractMerchantId("tok")).thenReturn(1L);
         when(staffRepo.findById(user.getId())).thenReturn(Optional.of(user));
+        when(staffAccess.requireActiveLink(user.getId(), 1L)).thenReturn(StaffUserMerchant.builder()
+                .staffUser(user).merchant(Merchant.builder().id(1L).active(true).build())
+                .role(StaffRole.ADMIN).active(true).build());
     }
 
     @Test
@@ -91,7 +101,7 @@ class JwtAuthenticationFilterTest {
     @Test
     void revokedToken_isNotAuthenticated() throws Exception {
         // FIX-11 / SEC-012: depois de revogar, mesmo token válido não autentica.
-        revocation.revoke("jti-1", java.time.Instant.now().plusSeconds(3600));
+        when(revocation.isRevoked("jti-1")).thenReturn(true);
         stubStaff(StaffUser.builder().id(1L).email("p@x.com").active(true).platformAdmin(false).build());
 
         runFilter();
@@ -114,5 +124,34 @@ class JwtAuthenticationFilterTest {
         assertThat(auth.getPrincipal()).isInstanceOf(Customer.class);
         assertThat(auth.getAuthorities()).anyMatch(a -> a.getAuthority().equals("ROLE_CUSTOMER"));
         verifyNoInteractions(staffRepo); // token de cliente não é tratado como staff
+    }
+
+    @Test
+    void removedMerchantLinkRejectsAnOtherwiseValidToken() throws Exception {
+        when(jwt.extractStaffId("tok")).thenReturn(1L);
+        when(jwt.extractMerchantId("tok")).thenReturn(1L);
+        when(staffAccess.requireActiveLink(1L, 1L)).thenThrow(new InvalidCredentialsException());
+        runFilter();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
+    void passwordResetInvalidatesPreviouslyIssuedToken() throws Exception {
+        stubStaff(StaffUser.builder().id(1L).tokenVersion(2L).active(true).build());
+        when(jwt.extractTokenVersion("tok")).thenReturn(1L);
+        runFilter();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
+    void derivesRoleFromCurrentLinkRatherThanJwt() throws Exception {
+        StaffUser staff = StaffUser.builder().id(1L).active(true).build();
+        stubStaff(staff);
+        when(staffAccess.requireActiveLink(1L, 1L)).thenReturn(StaffUserMerchant.builder()
+                .staffUser(staff).merchant(Merchant.builder().id(1L).active(true).build())
+                .role(StaffRole.CASHIER).active(true).build());
+        runFilter();
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+                .extracting("authority").containsExactly("CASHIER");
     }
 }

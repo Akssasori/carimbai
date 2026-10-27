@@ -1,4 +1,12 @@
-# Mapeamento LGPD de Dados Pessoais — carimbai (backend)
+# Inventario Atualizado Em 2026-10-26
+
+O inventario vigente esta em [docs/privacy/INVENTARIO_ATUAL.md](docs/privacy/INVENTARIO_ATUAL.md).
+O conteudo abaixo foi preservado como **levantamento historico superado**:
+as afirmacoes de cadastro publico, JWT com e-mail, ausencia de recuperacao e
+falta de APIs de direitos nao descrevem mais o codigo atual. As antigas
+sugestoes de base/retencao nao foram aprovadas nem ativadas.
+
+## Levantamento Historico
 
 > Gerado pela **Fase 2** do `SECURITY_LGPD_PLAN.md`. Análise **estática**, sem
 > alteração de código. Base: entidades JPA (`models/`), migrations

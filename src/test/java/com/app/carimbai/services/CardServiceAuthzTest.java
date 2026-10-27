@@ -109,7 +109,7 @@ class CardServiceAuthzTest {
         Program p = Program.builder().id(5L).merchant(Merchant.builder().id(2L).build()).build();
         when(programService.findById(5L)).thenReturn(p);
 
-        assertThatThrownBy(() -> service.getOrCreateCard(5L, 7L)) // programa do merchant 2
+        assertThatThrownBy(() -> service.getOrCreateCard(5L, 7L, null)) // programa do merchant 2
                 .isInstanceOf(AccessDeniedException.class);
         verifyNoInteractions(customerService);
     }

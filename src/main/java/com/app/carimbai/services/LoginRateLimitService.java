@@ -66,16 +66,12 @@ public class LoginRateLimitService {
     private String buildKey(String email) {
         String normalizedEmail = email == null ? "" : email.toLowerCase(Locale.ROOT).trim();
         String ip = resolveIp();
-        return normalizedEmail + "|" + ip;
+        return com.app.carimbai.security.OpaqueTokens.hash(normalizedEmail) + "|" + ip;
     }
 
     private String resolveIp() {
         if (request == null) return "unknown";
         try {
-            String forwarded = request.getHeader("X-Forwarded-For");
-            if (forwarded != null && !forwarded.isBlank()) {
-                return forwarded.split(",")[0].trim();
-            }
             String remote = request.getRemoteAddr();
             return remote != null ? remote : "unknown";
         } catch (IllegalStateException e) {
