@@ -55,7 +55,6 @@ jobs:
             -o StrictHostKeyChecking=yes -o ConnectTimeout=30
             -o UserKnownHostsFile=deploy/production_known_hosts)
           remote="$SSH_USER@$SSH_HOST"
-          ssh -T "${options[@]}" "$remote" 'bash -se' < deploy/preflight_server.sh
           destination="/opt/app/incoming/$GITHUB_SHA"
           ssh -T "${options[@]}" "$remote" "umask 077; mkdir -p '$destination'"
           scp "${options[@]}" target/app.jar deploy/release.py "$remote:$destination/"

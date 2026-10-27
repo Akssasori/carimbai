@@ -25,3 +25,4 @@ for label, fragment in {'migration_checksum': 'checksum mismatch', 'missing_plac
     'flyway_validation': 'Validate failed', 'missing_column': 'does not exist',
     'unsupported_property': 'Failed to bind properties'}.items():
     print('startup.' + label + '=' + ('REPROVADO' if fragment in content else 'APROVADO'))
+print('startup.log_directory_placeholder=' + ('REPROVADO' if '${LOG_DIR:-/var/log/carimbai}' in content else 'APROVADO'))

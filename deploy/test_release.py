@@ -32,6 +32,27 @@ class ReleaseTests(unittest.TestCase):
                 release.release('../main', 'a' * 64)
             command.assert_not_called()
 
+    def test_database_checks_fail_closed(self):
+        with patch('release.command', return_value=b'f'):
+            with self.assertRaises(release.ReleaseFailure):
+                release.database_checks({'PGSSLMODE': 'require'})
+
+    def test_failed_service_can_capture_configuration_without_saving_secrets(self):
+        calls = []
+
+        def command(label, args, **kwargs):
+            calls.append(label)
+            if label == 'service.pid':
+                return b'0' if calls.count('service.pid') == 1 else b'123'
+            return b''
+
+        with patch('release.command', side_effect=command), \
+             patch('release.pathlib.Path.read_bytes', return_value=b'DB_URL=test\0DB_USERNAME=app\0DB_PASSWORD=test-only\0'), \
+             patch('release.time.sleep'):
+            env = release.runtime_environment()
+        self.assertEqual(env['DB_PASSWORD'], 'test-only')
+        self.assertEqual(calls.count('service.recovery.start'), 1)
+
     def test_streaming_digest_matches_content(self):
         with tempfile.TemporaryDirectory() as directory:
             path = pathlib.Path(directory) / 'fixture'

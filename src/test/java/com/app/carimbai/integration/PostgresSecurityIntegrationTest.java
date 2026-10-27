@@ -793,8 +793,10 @@ class PostgresSecurityIntegrationTest {
 
     @Test void boot4ProductionProfileKeepsDocsSqlAndCorsRestricted(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path logs) throws Exception {
+        String previousLogDir=System.getProperty("LOG_DIR");
+        System.setProperty("LOG_DIR",logs.toString());
         try (var production=new org.springframework.boot.builder.SpringApplicationBuilder(com.app.carimbai.CarimbaiApplication.class)
-                .run("--spring.profiles.active=test,prod","--server.port=0","--logging.file.path="+logs,
+                .run("--spring.profiles.active=test,prod","--server.port=0",
                         "--spring.datasource.url="+PG.getJdbcUrl("postgres","postgres"),"--spring.datasource.username=postgres",
                         "--spring.datasource.password=postgres","--spring.datasource.hikari.data-source-properties.sslmode=disable",
                         "--carimbai.bootstrap.admin.email=","--carimbai.bootstrap.admin.password=")) {
@@ -821,6 +823,15 @@ class PostgresSecurityIntegrationTest {
                             .isEqualTo(origin.startsWith("https:") ? 200 : 403);
                 }
             }
+        } finally {
+            // Release test file handles before JUnit cleans the temporary directory on Windows.
+            var logging=(ch.qos.logback.classic.LoggerContext)org.slf4j.LoggerFactory.getILoggerFactory();
+            var applicationLog=logging.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME).getAppender("APP_FILE");
+            var auditLog=logging.getLogger("audit").getAppender("AUDIT_FILE");
+            if (applicationLog!=null) applicationLog.stop();
+            if (auditLog!=null) auditLog.stop();
+            if (previousLogDir==null) System.clearProperty("LOG_DIR");
+            else System.setProperty("LOG_DIR",previousLogDir);
         }
     }
 }

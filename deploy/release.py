@@ -45,6 +45,42 @@ def database_environment(env):
     return connection
 
 
+def runtime_environment():
+    restarted = False
+    for _ in range(40):
+        pid = int(command('service.pid', ['systemctl', 'show', 'carimbai.service',
+                                         '--property', 'MainPID', '--value']) or b'0')
+        try:
+            if pid > 0:
+                entries = pathlib.Path(f'/proc/{pid}/environ').read_bytes().split(b'\0')
+                env = dict(item.decode().split('=', 1) for item in entries if b'=' in item)
+                if all(env.get(key) for key in ['DB_URL', 'DB_USERNAME', 'DB_PASSWORD']):
+                    return env
+        except (FileNotFoundError, ProcessLookupError):
+            pass
+        if not restarted:
+            command('service.recovery.start', ['sudo', '-n', 'systemctl', 'restart', 'carimbai.service'])
+            restarted = True
+        time.sleep(0.1)
+    raise ReleaseFailure('service.configuration=REPROVADO')
+
+
+def database_checks(connection):
+    checks = {
+        'version': "SELECT current_setting('server_version_num')::int / 10000 = 16",
+        'tls': 'SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()',
+        'migrations': 'SELECT count(*)>0 AND bool_and(success) FROM public.flyway_schema_history',
+        'social_integrity': "SELECT NOT EXISTS (SELECT 1 FROM fidelity.customers WHERE provider_id IS NOT NULL AND btrim(provider_id)<>'' GROUP BY provider_id HAVING count(*)>1)",
+        'email_integrity': "SELECT NOT EXISTS (SELECT 1 FROM fidelity.customers WHERE email IS NOT NULL AND btrim(email)<>'' GROUP BY lower(btrim(email)) HAVING count(*)>1)",
+        'merchant_admins': "SELECT NOT EXISTS (SELECT 1 FROM core.merchants m WHERE m.active AND NOT EXISTS (SELECT 1 FROM core.staff_user_merchants l JOIN core.staff_users s ON s.id=l.staff_user_id WHERE l.merchant_id=m.id AND l.active AND s.active AND l.role='ADMIN'))"
+    }
+    for label, sql in checks.items():
+        value = command('database.' + label, ['psql', '-X', '-At', '-v', 'ON_ERROR_STOP=1', '-c', sql], env=connection)
+        if value.strip() != b't':
+            raise ReleaseFailure('database.' + label + '=REPROVADO')
+        print('database.' + label + '=APROVADO', flush=True)
+
+
 def restore_check(backup):
     # A separate PGDATA and private Unix socket, with TCP disabled. Never target the live DB.
     tools = pathlib.Path('/usr/lib/postgresql/16/bin')
@@ -92,16 +128,14 @@ def release(sha, expected_digest):
     with zipfile.ZipFile(candidate) as archive:
         if 'Spring-Boot-Version: 4.0.9' not in archive.read('META-INF/MANIFEST.MF').decode():
             raise ReleaseFailure('release.boot=REPROVADO')
-    pid = int(command('service.pid', ['systemctl', 'show', 'carimbai.service',
-                                    '--property', 'MainPID', '--value']))
-    entries = pathlib.Path(f'/proc/{pid}/environ').read_bytes().split(b'\0')
-    env = dict(item.decode().split('=', 1) for item in entries if b'=' in item)
+    env = runtime_environment()
     if env.get('SPRING_PROFILES_ACTIVE') != 'prod':
         raise ReleaseFailure('service.profile=REPROVADO')
     port = int(env.get('SERVER_PORT', '1234'))
     if not 1 <= port <= 65535:
         raise ReleaseFailure('service.port=REPROVADO')
     connection = database_environment(env)
+    database_checks(connection)
     size = int(command('backup.capacity', ['psql', '-X', '-At', '-v', 'ON_ERROR_STOP=1',
         '-c', 'SELECT pg_database_size(current_database())'], env=connection))
     if size > 64 * 1024 * 1024 or shutil.disk_usage(current.parent).free < size * 4 + current.stat().st_size * 2 + 1024**3:
