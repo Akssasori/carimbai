@@ -18,6 +18,8 @@ jobs:
           java-version: '25'
           distribution: 'oracle'
           cache: maven
+      - name: Verify release safety helpers
+        run: python3 -m unittest discover -s deploy -p 'test_*.py'
       - name: Verify with disposable PostgreSQL and export resolved SBOM
         run: bash mvnw -B -ntp -Psecurity-scan clean verify
       - name: Scan resolved runtime dependencies

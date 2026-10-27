@@ -88,7 +88,8 @@ for name, sql in checks.items():
 if not passed:
     raise SystemExit(1)
 print('logs.directory=' + ('APROVADO' if pathlib.Path('/var/log/carimbai').is_dir() else 'REPROVADO'))
+tools = pathlib.Path('/usr/lib/postgresql/16/bin')
+if not all((tools / name).is_file() for name in ['initdb', 'pg_ctl', 'pg_restore']):
+    raise SystemExit('backup.tools=REPROVADO')
+print('backup.tools=APROVADO')
 PY
-if command -v docker >/dev/null 2>&1; then
-  docker ps --format 'container.image={{.Image}} state={{.State}}'
-fi
