@@ -791,9 +791,10 @@ class PostgresSecurityIntegrationTest {
         assertThat(db.queryForObject("SELECT stamps_count FROM fidelity.cards WHERE id=1",Integer.class)).isEqualTo(1);
     }
 
-    @Test void boot4ProductionProfileKeepsDocsSqlAndCorsRestricted() throws Exception {
+    @Test void boot4ProductionProfileKeepsDocsSqlAndCorsRestricted(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path logs) throws Exception {
         try (var production=new org.springframework.boot.builder.SpringApplicationBuilder(com.app.carimbai.CarimbaiApplication.class)
-                .run("--spring.profiles.active=test,prod","--server.port=0",
+                .run("--spring.profiles.active=test,prod","--server.port=0","--logging.file.path="+logs,
                         "--spring.datasource.url="+PG.getJdbcUrl("postgres","postgres"),"--spring.datasource.username=postgres",
                         "--spring.datasource.password=postgres","--spring.datasource.hikari.data-source-properties.sslmode=disable",
                         "--carimbai.bootstrap.admin.email=","--carimbai.bootstrap.admin.password=")) {
@@ -804,6 +805,8 @@ class PostgresSecurityIntegrationTest {
             assertThat(production.getEnvironment().getProperty("spring.jpa.show-sql",Boolean.class)).isFalse();
             var factory=entityManager.unwrap(org.hibernate.engine.spi.SessionFactoryImplementor.class);
             assertThat(factory.getJdbcServices().getSqlStatementLogger().isLogToStdout()).isFalse();
+            assertThat(logs.resolve("application.log")).isRegularFile();
+            assertThat(logs.resolve("audit.log")).isRegularFile();
             int productionPort=((org.springframework.boot.web.server.context.WebServerApplicationContext)production).getWebServer().getPort();
             try (HttpClient client=HttpClient.newHttpClient()) {
                 for (String path:List.of("/v3/api-docs","/swagger-ui/index.html")) {
