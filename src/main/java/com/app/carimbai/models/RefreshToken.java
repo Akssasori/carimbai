@@ -20,6 +20,7 @@ import lombok.Setter;
 
 import java.net.InetAddress;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Entity
 @Getter
@@ -37,6 +38,12 @@ public class RefreshToken {
 
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
+
+    @Column(name = "family_id", nullable = false)
+    private UUID familyId;
+
+    @Column(name = "token_version", nullable = false)
+    private Long tokenVersion;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "staff_user_id", nullable = false)

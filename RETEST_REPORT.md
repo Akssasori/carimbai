@@ -1,5 +1,14 @@
 # Relatório de Reteste e Fechamento — carimbai
 
+> Reteste atual, 2026-10-27: Spring Boot 4.0.9 / Framework 7.0.10.
+> 151 testes backend aprovados, incluindo 45 de integracao com PostgreSQL 16
+> descartavel; build PWA e 8 testes Node aprovados; lint sem erros e com 5 avisos.
+> OSV 2.7.0: 153 dependencias, zero alertas conhecidos, sem supressoes.
+> Homologacao externa, aprovacao de producao e rollback operacional pendentes.
+> Evidencias, hashes e limites em
+> [IMPLEMENTACAO_MIGRACAO_BOOT_4.md](docs/IMPLEMENTACAO_MIGRACAO_BOOT_4.md).
+> O restante deste arquivo e historico e nao substitui esse reteste.
+
 > **Fase 15** do `SECURITY_LGPD_PLAN.md`. Cobre (1) o **reteste das correções
 > aplicadas** (quick wins do `SECURITY_FIX_PLAN.md`) e (2) uma **correção de
 > precisão** descoberta nesta fase (working tree × commitado). Data: 2026-06-13.

@@ -18,6 +18,8 @@ import java.security.Key;
 import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
+import java.util.Set;
+import io.jsonwebtoken.JwtException;
 
 @Service
 @RequiredArgsConstructor
@@ -40,8 +42,8 @@ public class JwtService {
     @Value("${carimbai.jwt.expiration-seconds:28800}")
     private long expirationSeconds;
 
-    // Sessão de cliente é longa (app de fidelidade, uso esporádico). Default 30 dias.
-    @Value("${carimbai.jwt.customer-expiration-seconds:2592000}")
+    // Customer sessions expire within one working day unless explicitly configured.
+    @Value("${carimbai.jwt.customer-expiration-seconds:28800}")
     private long customerExpirationSeconds;
 
     @PostConstruct
@@ -50,10 +52,14 @@ public class JwtService {
     }
 
     public String generateToken(StaffUser user, StaffUserMerchant activeLink) {
+        return generateToken(user, activeLink, null);
+    }
+
+    public String generateToken(StaffUser user, StaffUserMerchant activeLink, UUID familyId) {
         Instant now = Instant.now();
         Instant exp = now.plusSeconds(expirationSeconds);
 
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(user.getId().toString())
                 .issuer(ISSUER)
                 .audience().add(AUDIENCE_STAFF).and()
@@ -61,10 +67,11 @@ public class JwtService {
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
                 .claim("role", activeLink.getRole().name())
+                .claim("version", user.getTokenVersion())
                 .claim("merchantId", activeLink.getMerchant().getId())
-                .claim("email", user.getEmail())
-                .signWith(signingKey)
-                .compact();
+                .signWith(signingKey);
+        if (familyId != null) builder.claim("sid", familyId.toString());
+        return builder.compact();
     }
 
     /** Token de CLIENTE (FIX-02, Fase A): sub = customerId, aud = staff vs customer. */
@@ -79,6 +86,7 @@ public class JwtService {
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
                 .claim("type", "CUSTOMER")
+                .claim("version", customer.getTokenVersion())
                 .signWith(signingKey)
                 .compact();
     }
@@ -97,11 +105,33 @@ public class JwtService {
      * Token sem iss/aud (legado) é rejeitado como inválido.
      */
     public Jws<Claims> parseToken(String token) {
-        return Jwts.parser()
+        Jws<Claims> parsed = Jwts.parser()
                 .verifyWith((SecretKey) signingKey)
                 .requireIssuer(ISSUER)
                 .build()
                 .parseSignedClaims(token);
+        Claims claims = parsed.getPayload();
+        String type = claims.get("type", String.class);
+        String audience;
+        if ("CUSTOMER".equals(type)) {
+            audience = AUDIENCE_CUSTOMER;
+            if (!(claims.get("version") instanceof Number)) throw new JwtException("Customer session must be renewed");
+        } else if (type == null) {
+            audience = AUDIENCE_STAFF;
+        } else {
+            throw new JwtException("Invalid token type");
+        }
+        if (!Set.of(audience).equals(claims.getAudience()) || claims.getExpiration() == null
+                || claims.getIssuedAt() == null || claims.getId() == null
+                || claims.getId().length() > 64 || claims.getId().isBlank()) {
+            throw new JwtException("Invalid token claims");
+        }
+        try {
+            if (Long.parseLong(claims.getSubject()) <= 0) throw new NumberFormatException();
+        } catch (NumberFormatException ex) {
+            throw new JwtException("Invalid token subject");
+        }
+        return parsed;
     }
 
     public Long extractStaffId(String token) {
@@ -116,9 +146,18 @@ public class JwtService {
 
     public Long extractMerchantId(String token) {
         Claims claims = parseToken(token).getPayload();
-        Integer asInt = claims.get("merchantId", Integer.class);
-        if (asInt != null) return asInt.longValue();
-        return claims.get("merchantId", Long.class);
+        Number value = claims.get("merchantId", Number.class);
+        return value == null ? null : value.longValue();
+    }
+
+    public long extractTokenVersion(String token) {
+        Number value = parseToken(token).getPayload().get("version", Number.class);
+        return value == null ? 0L : value.longValue();
+    }
+
+    public UUID extractFamilyId(String token) {
+        String value = parseToken(token).getPayload().get("sid", String.class);
+        return value == null ? null : UUID.fromString(value);
     }
 
     /** jti (token id) — chave usada para revogação (logout). */

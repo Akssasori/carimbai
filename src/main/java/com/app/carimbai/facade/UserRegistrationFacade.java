@@ -1,6 +1,8 @@
 package com.app.carimbai.facade;
 
 import com.app.carimbai.dtos.customer.CustomerLoginRequest;
+import com.app.carimbai.dtos.customer.CounterCustomerRequest;
+import com.app.carimbai.utils.SecurityUtils;
 import com.app.carimbai.dtos.customer.SocialLoginRequest;
 import com.app.carimbai.models.fidelity.Customer;
 import com.app.carimbai.security.audit.AuditEvent;
@@ -26,12 +28,13 @@ public class UserRegistrationFacade {
     private final AuditSecurityService audit;
 
     @Transactional
-    public Customer registerUser(CustomerLoginRequest request) {
+    public Customer registerUser(CounterCustomerRequest request) {
         // login-light: NÃO é autenticação real → não emite token (FIX-02 / SEC-001).
-        Customer c = customerService.loginOrRegister(request);
+        Customer c = customerService.registerAtCounter(request);
         audit.success(AuditEvent.CUSTOMER_LOGIN_OR_REGISTER, Map.of(
                 "customerId", c.getId(),
-                "email", AuditMask.email(request.email())));
+                "merchantId", SecurityUtils.getActiveMerchantId(),
+                "staffId", SecurityUtils.getRequiredStaffUser().getId()));
         return c;
     }
 

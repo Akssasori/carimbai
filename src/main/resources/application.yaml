@@ -1,8 +1,7 @@
 server:
   # Reconhece X-Forwarded-* do proxy reverso (HTTPS/HSTS corretos) — SEC-029.
   forward-headers-strategy: framework
-  # FIX-04 / SEC-032 — limite de tamanho de request (anti-abuso de recurso).
-  # Nossas requests JSON são pequenas (KB); cortar acima evita "billion-laughs".
+  # Limites de formulario/descarte; JSON e limitado por JsonRequestSizeFilter.
   tomcat:
     max-http-form-post-size: 256KB
     max-swallow-size: 256KB
@@ -11,6 +10,8 @@ server:
     include-stacktrace: never
     include-message: never
 spring:
+  jackson:
+    use-jackson2-defaults: true
   servlet:
     multipart:
       max-request-size: 1MB
@@ -44,6 +45,9 @@ app:
       - http://localhost:3000
       - http://localhost:1234
 carimbai:
+  request:
+    max-json-bytes: ${CARIMBAI_MAX_JSON_BYTES:262144}
+  app-base-url: ${CARIMBAI_APP_BASE_URL:http://localhost:5173}
   hmac-secret: ${CARIMBAI_HMAC_SECRET}
   stamps-needed: 10
   stamps-default-needed: 10
@@ -54,6 +58,19 @@ carimbai:
   jwt:
     secret: ${CARIMBAI_JWT_SECRET}
     expiration-seconds: 28800
+    customer-expiration-seconds: ${CARIMBAI_CUSTOMER_TOKEN_TTL_SECONDS:28800}
+  privacy:
+    contact-email: ${CARIMBAI_PRIVACY_CONTACT_EMAIL:diniz3003@gmail.com}
+    controller-name: ${CARIMBAI_PRIVACY_CONTROLLER_NAME:Carimbai - identificacao juridica pendente}
+    controller-document: ${CARIMBAI_PRIVACY_CONTROLLER_DOCUMENT:00.000.000/0000-00 (FICTICIO)}
+    notice-approved: false
+    destructive-actions-approved: false
+    retention-enabled: false
+    retention-dry-run: true
+    restoration-quarantine: ${CARIMBAI_RESTORATION_QUARANTINE:false}
+    journal-origin: ${CARIMBAI_PRIVACY_JOURNAL_ORIGIN:}
+    journal-signing-secret: ${CARIMBAI_PRIVACY_JOURNAL_SECRET:}
+    collect-network-metadata: false
   mail:
     from: ${CARIMBAI_MAIL_FROM:}
     from-name: ${CARIMBAI_MAIL_FROM_NAME:Carimbai}

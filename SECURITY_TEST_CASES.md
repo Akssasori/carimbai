@@ -1,5 +1,12 @@
 # Casos de Teste de Segurança — carimbai
 
+> Atualizacao 2026-10-25: cenarios historicos abaixo. Agora ha testes automatizados
+> HTTP/JPA em PostgreSQL descartavel, alem das suites unitarias e testes Node do PWA.
+> Atualizacao 2026-10-27: 151 testes backend, 45 de integracao, 8 testes Node;
+> Spring Boot 4.0.9 e OSV sem alertas conhecidos em 153 dependencias.
+> Resultado e lacunas atuais: [IMPLEMENTACAO_MIGRACAO_BOOT_4.md](docs/IMPLEMENTACAO_MIGRACAO_BOOT_4.md).
+> Nenhum teste ativo foi executado contra producao.
+
 > Gerado na **Fase 5** do `SECURITY_LGPD_PLAN.md` (autenticação e sessão). Reúne
 > **testes manuais** (executáveis em ambiente autorizado — ver RoE, seção 2.1 do
 > plano) e **propostas de testes automatizados** (snippets; **não** foram

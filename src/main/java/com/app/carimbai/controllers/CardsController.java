@@ -42,7 +42,7 @@ public class CardsController {
     @PostMapping
     public ResponseEntity<AdminCardResponse> createOrGetCard(@Valid @RequestBody CreateCardRequest request) {
 
-        var result = cardService.getOrCreateCard(request.programId(), request.customerId());
+        var result = cardService.getOrCreateCard(request.programId(), request.customerId(), request.enrollmentProof());
         return ResponseEntity
                 .status(result.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(cardMapper.cardToAdminCardResponse(result.card()));

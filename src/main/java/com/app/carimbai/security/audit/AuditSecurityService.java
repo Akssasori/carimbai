@@ -20,7 +20,9 @@ import java.util.Map;
  * deve ser sempre mascarada via {@link AuditMask} antes de virar atributo.
  */
 @Service
+@lombok.RequiredArgsConstructor
 public class AuditSecurityService {
+    private final com.app.carimbai.security.NetworkMetadata metadata;
 
     private static final Logger AUDIT = LoggerFactory.getLogger("audit");
 
@@ -29,7 +31,7 @@ public class AuditSecurityService {
         safe.put("event", type.name());
         safe.put("outcome", outcome);
         addRequestContext(safe);
-        if (attrs != null) safe.putAll(attrs);
+        if (attrs != null) safe.putAll(com.app.carimbai.security.AuditDataMinimizer.project(attrs));
         AUDIT.info("{}", format(safe));
     }
 
@@ -45,23 +47,19 @@ public class AuditSecurityService {
         event(type, "DENIED", attrs);
     }
 
-    private static void addRequestContext(Map<String, Object> attrs) {
+    private void addRequestContext(Map<String, Object> attrs) {
+        var customer=com.app.carimbai.utils.SecurityUtils.getCurrentCustomerOrNull();
+        var staff=com.app.carimbai.utils.SecurityUtils.getCurrentStaffUserOrNull();
+        if (customer!=null) { attrs.put("actorType","CUSTOMER"); attrs.put("actorId",customer.getId()); }
+        else if (staff!=null) { attrs.put("actorType","STAFF"); attrs.put("actorId",staff.getId()); }
         try {
             var req = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
-            attrs.put("ip", clientIp(req));
+            var ip=metadata.ip(req);
+            if (ip!=null) attrs.put("ip",ip.getHostAddress());
             attrs.put("path", req.getRequestURI());
         } catch (IllegalStateException ignored) {
             // Fora de contexto HTTP (jobs/agendados) — apenas omite.
         }
-    }
-
-    private static String clientIp(HttpServletRequest req) {
-        String xff = req.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            int comma = xff.indexOf(',');
-            return (comma > 0 ? xff.substring(0, comma) : xff).trim();
-        }
-        return req.getRemoteAddr();
     }
 
     private static String format(Map<String, Object> attrs) {

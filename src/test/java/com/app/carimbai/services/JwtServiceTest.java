@@ -48,6 +48,18 @@ class JwtServiceTest {
         assertThat(s.extractRole(token)).isEqualTo("ADMIN");
         assertThat(s.extractMerchantId(token)).isEqualTo(3L);
         assertThat(s.isExpired(token)).isFalse();
+        assertThat(s.parseToken(token).getPayload()).doesNotContainKeys("email","name","phone","providerId");
+    }
+
+    @Test void oldLongLivedCustomerTokenWithoutVersionRequiresNewLogin() {
+        JwtService service=newService(3600);
+        var key=io.jsonwebtoken.security.Keys.hmacShaKeyFor(((String)ReflectionTestUtils.getField(service,"secret"))
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String old=io.jsonwebtoken.Jwts.builder().issuer(JwtService.ISSUER).subject("1")
+                .audience().add(JwtService.AUDIENCE_CUSTOMER).and().claim("type","CUSTOMER")
+                .id(java.util.UUID.randomUUID().toString()).issuedAt(new java.util.Date())
+                .expiration(new java.util.Date(System.currentTimeMillis()+86400000L)).signWith(key).compact();
+        assertThatThrownBy(()->service.parseToken(old)).isInstanceOf(JwtException.class);
     }
 
     @Test
@@ -152,5 +164,20 @@ class JwtServiceTest {
         String unsigned = header + "." + payload + ".";
 
         assertThatThrownBy(() -> s.parseToken(unsigned)).isInstanceOf(JwtException.class);
+    }
+
+    @Test
+    void rejectsMissingWrongOrCrossTypeAudience() {
+        JwtService service = newService(3600);
+        var key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(((String) ReflectionTestUtils.getField(service, "secret"))
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        for (String audience : new String[]{"", "other-service", JwtService.AUDIENCE_CUSTOMER}) {
+            var builder = io.jsonwebtoken.Jwts.builder().issuer(JwtService.ISSUER).subject("1")
+                    .id(java.util.UUID.randomUUID().toString()).issuedAt(new java.util.Date())
+                    .expiration(new java.util.Date(System.currentTimeMillis() + 60000));
+            if (!audience.isEmpty()) builder.audience().add(audience).and();
+            String token = builder.signWith(key).compact();
+            assertThatThrownBy(() -> service.parseToken(token)).isInstanceOf(JwtException.class);
+        }
     }
 }

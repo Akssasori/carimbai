@@ -1,6 +1,13 @@
 package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.admin.CreateStaffUserRequest;
+import com.app.carimbai.dtos.staff.admin.UpdateStaffMerchantRequest;
+import com.app.carimbai.dtos.staff.admin.StaffItem;
+import com.app.carimbai.mappers.StaffMapper;
+import com.app.carimbai.enums.StaffRole;
+import org.springframework.data.domain.PageRequest;
+import java.util.List;
+import java.nio.charset.StandardCharsets;
 import com.app.carimbai.models.core.Merchant;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.models.core.StaffUserMerchant;
@@ -32,6 +39,7 @@ public class StaffService {
     private final MerchantService merchantService;
     private final PinLockoutService pinLockoutService;
     private final AuditSecurityService audit;
+    private final StaffMapper staffMapper;
 
     public StaffUser validateCashierPin(Long cashierId, String pin) {
         if (cashierId == null || pin == null || pin.isBlank())
@@ -92,6 +100,9 @@ public class StaffService {
 
         SecurityUtils.requireActiveMerchant(request.merchantId()); // SEC-020
         Merchant merchant = merchantService.findById(request.merchantId());
+        if (request.password().getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new IllegalArgumentException("Password must contain at most 72 UTF-8 bytes");
+        }
 
         var staffUser = StaffUser.builder()
                 .email(request.email())
@@ -121,5 +132,32 @@ public class StaffService {
                 "merchantId", request.merchantId(),
                 "role", request.role().name()));
         return staffUser;
+    }
+
+    @Transactional(readOnly = true)
+    public List<StaffItem> listStaff(Long merchantId, int page, int size) {
+        SecurityUtils.requireActiveMerchant(merchantId);
+        return staffMerchantRepository.findByMerchantIdOrderByIdAsc(merchantId,
+                        PageRequest.of(Math.max(0, page), Math.max(1, Math.min(100, size))))
+                .stream().map(staffMapper::toStaffItem).toList();
+    }
+
+    @Transactional
+    public StaffItem updateInMerchant(Long merchantId, Long staffId, UpdateStaffMerchantRequest request) {
+        SecurityUtils.requireActiveMerchant(merchantId);
+        merchantService.lockById(merchantId);
+        var link = staffMerchantRepository.findByStaffUserIdAndMerchantId(staffId, merchantId)
+                .orElseThrow(() -> new AccessDeniedException("Staff does not belong to the active merchant"));
+        boolean removingAdmin = Boolean.TRUE.equals(link.getActive()) && link.getRole() == StaffRole.ADMIN
+                && (Boolean.FALSE.equals(request.active()) || request.role() == StaffRole.CASHIER);
+        if (removingAdmin && staffMerchantRepository.countActiveAdmins(merchantId) <= 1) {
+            throw new IllegalStateException("Cannot remove the last active administrator");
+        }
+        if (request.role() != null) link.setRole(request.role());
+        if (request.active() != null) link.setActive(request.active());
+        staffMerchantRepository.save(link);
+        audit.success(AuditEvent.STAFF_USER_UPDATE, Map.of("targetStaffId", staffId,
+                "merchantId", merchantId, "actorStaffId", SecurityUtils.getRequiredStaffUser().getId()));
+        return staffMapper.toStaffItem(link);
     }
 }

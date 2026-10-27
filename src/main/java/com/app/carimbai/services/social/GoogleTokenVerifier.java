@@ -40,7 +40,8 @@ public class GoogleTokenVerifier implements SocialTokenVerifier {
             return new VerifiedSocialIdentity(
                     payload.getSubject(),
                     payload.getEmail(),
-                    (String) payload.get("name")
+                    (String) payload.get("name"),
+                    Boolean.TRUE.equals(payload.getEmailVerified())
             );
         } catch (InvalidSocialTokenException e) {
             throw e;

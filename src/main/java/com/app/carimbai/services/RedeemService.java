@@ -14,8 +14,8 @@ import com.app.carimbai.repositories.RewardRepository;
 import com.app.carimbai.security.audit.AuditEvent;
 import com.app.carimbai.security.audit.AuditSecurityService;
 import com.app.carimbai.utils.SecurityUtils;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,6 +52,10 @@ public class RedeemService {
         if (redeemRequest.locationId() != null) {
             location = locationRepo.findById(redeemRequest.locationId())
                     .orElseThrow(() -> new IllegalArgumentException("Location not found: " + redeemRequest.locationId()));
+
+            if (!Boolean.TRUE.equals(location.getActive())) {
+                throw new IllegalArgumentException("Location is inactive");
+            }
 
             if (!location.getMerchant().getId().equals(activeMerchantId)) {
                 throw new IllegalArgumentException("Location does not belong to staff merchant");
@@ -100,6 +104,9 @@ public class RedeemService {
 
         if (!card.getProgram().getMerchant().getId().equals(activeMerchantId)) {
             throw new IllegalArgumentException("Card does not belong to staff merchant");
+        }
+        if (!Boolean.TRUE.equals(card.getCustomer().getActive())) {
+            throw new org.springframework.security.access.AccessDeniedException("Customer processing is restricted");
         }
 
         var program = card.getProgram();

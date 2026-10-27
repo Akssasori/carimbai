@@ -20,7 +20,7 @@ import com.app.carimbai.repositories.CardRepository;
 import com.app.carimbai.repositories.LocationRepository;
 import com.app.carimbai.repositories.StampRepository;
 import com.app.carimbai.utils.SecurityUtils;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,6 +46,7 @@ public class StampsService {
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.app.carimbai.security.NetworkMetadata metadata;
 
     @Value("${carimbai.rate-limit.seconds:120}")
     private Integer rateWindowSeconds;
@@ -88,6 +89,10 @@ public class StampsService {
 
         if (!card.getProgram().getMerchant().getId().equals(activeMerchantId)) {
             throw new IllegalArgumentException("Card does not belong to staff merchant");
+        }
+        if (!Boolean.TRUE.equals(card.getCustomer().getActive()) || card.getStatus()==CardStatus.BLOCKED
+                || card.getStatus()==CardStatus.EXPIRED) {
+            throw new org.springframework.security.access.AccessDeniedException("Customer/card processing is restricted");
         }
 
         // ── Regra: card já está pronto para resgate → bloqueia novo carimbo ──
@@ -137,10 +142,14 @@ public class StampsService {
         stamp.setTokenId(savedToken.getId());
 
         if (requestMeta != null) {
-            stamp.setUserAgent(requestMeta.userAgent());
+            stamp.setUserAgent(metadata.userAgent(requestMeta.userAgent()));
             if (requestMeta.locationId() != null) {
                 var locRef = locationRepo.findById(requestMeta.locationId())
                         .orElseThrow(() -> new IllegalArgumentException("Location not found"));
+
+                if (!Boolean.TRUE.equals(locRef.getActive())) {
+                    throw new IllegalArgumentException("Location is inactive");
+                }
 
                 if (!locRef.getMerchant().getId().equals(activeMerchantId)) {
                     throw new IllegalArgumentException("Location does not belong to staff merchant");

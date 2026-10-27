@@ -2,6 +2,7 @@ package com.app.carimbai.services;
 
 import com.app.carimbai.dtos.QrTokenResponse;
 import com.app.carimbai.dtos.TokenPayload;
+import com.app.carimbai.dtos.customer.EnrollmentQrResponse;
 import com.app.carimbai.models.StampToken;
 import com.app.carimbai.repositories.StampTokenRepository;
 import jakarta.annotation.PostConstruct;
@@ -53,6 +54,11 @@ public class StampTokenService {
                 customerQr.sig());
     }
 
+    public EnrollmentQrResponse generateEnrollmentQr(Long customerId) {
+        TokenPayload proof = issue("CUSTOMER_ENROLLMENT", customerId);
+        return new EnrollmentQrResponse("CUSTOMER_ID", customerId, proof.nonce(), proof.exp(), proof.sig());
+    }
+
     public TokenPayload issueStore(Long locationId) { return issue("STORE_QR", locationId); }
 
     //emitir
@@ -85,10 +91,12 @@ public class StampTokenService {
 
     public StampToken validateAndConsume(TokenPayload p) {
         // exp
-        var expTime = OffsetDateTime.ofInstant(
-                java.time.Instant.ofEpochSecond(p.exp()),
-                java.time.ZoneOffset.UTC
-        );
+        final OffsetDateTime expTime;
+        try {
+            expTime = OffsetDateTime.ofInstant(java.time.Instant.ofEpochSecond(p.exp()), java.time.ZoneOffset.UTC);
+        } catch (java.time.DateTimeException ex) {
+            throw new IllegalArgumentException("Invalid token expiry");
+        }
 
         if (OffsetDateTime.now().isAfter(expTime)) throw new IllegalArgumentException("Token expired");
 
@@ -122,7 +130,7 @@ public class StampTokenService {
     }
 
     private boolean constantTimeEquals(String a, String b) {
-        if (a.length() != b.length()) return false;
+        if (a == null || b == null || a.length() != b.length()) return false;
         int r = 0;
         for (int i=0; i<a.length(); i++) r |= a.charAt(i) ^ b.charAt(i);
         return r == 0;

@@ -46,6 +46,9 @@ app:
     allowed-origins:
       - https://carimbai-app.vercel.app
 
+carimbai:
+  app-base-url: ${CARIMBAI_APP_BASE_URL:https://carimbai-app.vercel.app}
+
 # NÃO declarar carimbai.jwt.secret / hmac-secret aqui: são herdados de
 # application.yaml (base), que exige a env SEM default. Assim, se
 # CARIMBAI_JWT_SECRET / CARIMBAI_HMAC_SECRET faltarem, a app FALHA ao subir

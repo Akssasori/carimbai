@@ -12,6 +12,9 @@ import com.app.carimbai.utils.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -50,6 +53,7 @@ public class ProgramService {
 
         auditService.log(AuditService.AuditEntry.builder()
                 .action(AuditAction.PROGRAM_CREATED)
+                .actorId(SecurityUtils.getRequiredStaffUser().getId())
                 .actorType(AuditActorType.STAFF)
                 .entityType("Program")
                 .entityId(saved.getId())
@@ -70,7 +74,7 @@ public class ProgramService {
                 .orElseThrow(() -> new IllegalArgumentException("Program not found with id: " + programId));
 
         if (!program.getMerchant().getId().equals(merchantId)) {
-            throw new IllegalArgumentException("Program does not belong to merchant " + merchantId);
+            throw new AccessDeniedException("Program does not belong to the active merchant");
         }
 
         if (request.name() != null) program.setName(request.name());
@@ -96,6 +100,7 @@ public class ProgramService {
 
         auditService.log(AuditService.AuditEntry.builder()
                 .action(AuditAction.PROGRAM_UPDATED)
+                .actorId(SecurityUtils.getRequiredStaffUser().getId())
                 .actorType(AuditActorType.STAFF)
                 .entityType("Program")
                 .entityId(saved.getId())
@@ -114,13 +119,20 @@ public class ProgramService {
         return programRepository.findByMerchantId(merchantId);
     }
 
+    @Transactional(readOnly = true)
+    public List<Program> listAdminPrograms(Long merchantId, int page, int size) {
+        SecurityUtils.requireActiveMerchant(merchantId);
+        return programRepository.findByMerchantIdOrderByIdAsc(merchantId,
+                PageRequest.of(Math.max(0, page), Math.max(1, Math.min(100, size))));
+    }
+
     public Program findById(Long programId) {
         return programRepository.findById(programId)
                 .orElseThrow(() -> new IllegalArgumentException("Program not found with id: " + programId));
     }
 
     public List<Program> listPrograms(Long merchantId, boolean activeOnly) {
-
+        if (!activeOnly) SecurityUtils.requireActiveMerchant(merchantId);
         return  activeOnly
                 ? findActiveByMerchantId(merchantId)
                 : findByMerchantId(merchantId);

@@ -1,5 +1,13 @@
 # Relatório de Segurança e LGPD — carimbai (backend)
 
+> Atualizacao 2026-10-27: diagnostico historico. Correcoes atuais, testes HTTP/JPA,
+> dependencias e limites de validacao estao em
+> [IMPLEMENTACAO_PLANO_TECNICO.md](docs/IMPLEMENTACAO_PLANO_TECNICO.md).
+> Os dois alertas Spring foram removidos por migracao efetiva: OSV sem alertas
+> conhecidos em 153 dependencias e 151 testes aprovados. Homologacao externa
+> continua pendente; LGPD nao certificada.
+> Veja [evidencias da migracao](docs/IMPLEMENTACAO_MIGRACAO_BOOT_4.md).
+
 > Documento gerado pela execução da **Fase 1 — Reconhecimento** do
 > `SECURITY_LGPD_PLAN.md`. Análise **estática, sem alteração de código** e sem
 > testes ativos/dinâmicos. Os achados abaixo são observações de revisão de

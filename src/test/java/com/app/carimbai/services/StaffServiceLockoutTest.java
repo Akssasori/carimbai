@@ -40,7 +40,8 @@ class StaffServiceLockoutTest {
         var merchantService = mock(MerchantService.class);
         encoder = mock(BCryptPasswordEncoder.class);
         lockout = new PinLockoutService(); // real, in-memory
-        service = new StaffService(staffRepo, linkRepo, encoder, merchantService, lockout, mock(AuditSecurityService.class));
+        service = new StaffService(staffRepo, linkRepo, encoder, merchantService, lockout,
+                mock(AuditSecurityService.class), mock(com.app.carimbai.mappers.StaffMapper.class));
 
         var staff = StaffUser.builder().id(10L).pinHash("HASH").active(true).build();
         when(staffRepo.findById(10L)).thenReturn(Optional.of(staff));

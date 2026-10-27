@@ -51,9 +51,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
     // Limites conservadores (recomendados na proposta FIX-04).
     private static final List<Rule> RULES = List.of(
             new Rule(HttpMethod.POST, "/api/auth/login", "auth-login", 10, Duration.ofMinutes(1)),
+            new Rule(HttpMethod.POST, "/api/privacy/me/requests", "privacy-request", 5, Duration.ofMinutes(15)),
+            new Rule(HttpMethod.GET, "/api/privacy/me/export", "privacy-export", 30, Duration.ofMinutes(1)),
+            new Rule(HttpMethod.PATCH, "/api/privacy/me/profile", "privacy-correction", 10, Duration.ofMinutes(1)),
+            new Rule(HttpMethod.PUT, "/api/notifications/preferences", "privacy-preference", 10, Duration.ofMinutes(1)),
+            new Rule(HttpMethod.POST, "/api/auth/forgot-password", "password-recovery", 5, Duration.ofMinutes(15)),
+            new Rule(HttpMethod.POST, "/api/auth/reset-password", "password-reset", 10, Duration.ofMinutes(1)),
+            new Rule(HttpMethod.POST, "/api/auth/refresh", "session-refresh", 30, Duration.ofMinutes(1)),
             new Rule(HttpMethod.POST, "/api/customers/social-login", "social-login", 10, Duration.ofMinutes(1)),
             new Rule(HttpMethod.POST, "/api/customers/login-or-register", "login-or-register", 10, Duration.ofMinutes(1)),
             new Rule(HttpMethod.POST, "/api/cards", "enroll", 30, Duration.ofMinutes(1)),
+            new Rule(HttpMethod.GET, "/api/customers/me/enrollment-qr", "enrollment-qr", 30, Duration.ofMinutes(1)),
+            new Rule(HttpMethod.POST, "/api/notifications/subscribe", "push-subscribe", 10, Duration.ofMinutes(1)),
             new Rule(HttpMethod.GET, "/api/qr/**", "qr", 60, Duration.ofMinutes(1)),
             new Rule(HttpMethod.GET, "/api/cards/*/redeem-qr", "redeem-qr", 60, Duration.ofMinutes(1))
     );
@@ -77,7 +86,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
         if (!probe.isConsumed()) {
             long retryAfterSec = TimeUnit.NANOSECONDS.toSeconds(probe.getNanosToWaitForRefill()) + 1;
-            log.warn("Rate limit hit: rule={} ip={} retryAfter={}s", rule.name(), ip, retryAfterSec);
+            log.warn("Rate limit hit: rule={} retryAfter={}s", rule.name(), retryAfterSec);
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setHeader("Retry-After", String.valueOf(retryAfterSec));
             response.setContentType("application/json");
@@ -99,13 +108,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private static String clientIp(HttpServletRequest req) {
-        // server.forward-headers-strategy=framework já trata X-Forwarded-* antes de chegar aqui;
-        // mas mantemos fallback explícito caso o proxy injete só X-Forwarded-For.
-        String xff = req.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            int comma = xff.indexOf(',');
-            return (comma > 0 ? xff.substring(0, comma) : xff).trim();
-        }
+        // Forwarded headers must be sanitized by the trusted reverse proxy.
         return req.getRemoteAddr();
     }
 }

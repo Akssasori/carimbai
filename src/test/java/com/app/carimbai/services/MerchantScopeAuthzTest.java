@@ -70,7 +70,7 @@ class MerchantScopeAuthzTest {
         BCryptPasswordEncoder encoder = mock(BCryptPasswordEncoder.class);
         MerchantService merchantService = mock(MerchantService.class);
         StaffService service = new StaffService(staffRepo, linkRepo, encoder, merchantService,
-                mock(PinLockoutService.class), mock(AuditSecurityService.class));
+                mock(PinLockoutService.class), mock(AuditSecurityService.class), mock(com.app.carimbai.mappers.StaffMapper.class));
 
         setActiveMerchant(1L);
         var req = new CreateStaffUserRequest(2L, "novo@x.com", "senhaforte123", StaffRole.CASHIER);

@@ -3,6 +3,8 @@ package com.app.carimbai.services;
 import com.app.carimbai.models.PasswordResetToken;
 import com.app.carimbai.models.core.StaffUser;
 import com.app.carimbai.repositories.PasswordResetTokenRepository;
+import com.app.carimbai.repositories.StaffUserRepository;
+import com.app.carimbai.security.OpaqueTokens;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,13 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.OffsetDateTime;
-import java.util.Base64;
-import java.util.Objects;
 
 /**
  * Cria e consome tokens one-shot para reset de senha do staff.
@@ -32,10 +28,9 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class PasswordResetTokenService {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-    private static final int TOKEN_BYTES = 32;
-
     private final PasswordResetTokenRepository repo;
+    private final StaffUserRepository staffRepo;
+    private final com.app.carimbai.security.NetworkMetadata metadata;
 
     @Value("${carimbai.password-reset.token-ttl-hours:1}")
     private int tokenTtlHours;
@@ -47,6 +42,9 @@ public class PasswordResetTokenService {
 
     @Transactional
     public IssuedToken issue(StaffUser staff) {
+        staffRepo.findByIdForUpdate(staff.getId())
+                .orElseThrow(() -> new PasswordResetTokenInvalidException("Invalid password reset token"));
+        repo.invalidateForStaff(staff.getId(), OffsetDateTime.now());
         String raw = generateRawToken();
         String hash = sha256(raw);
 
@@ -59,7 +57,7 @@ public class PasswordResetTokenService {
                 .userAgent(resolveUserAgent())
                 .build();
 
-        entity = repo.save(entity);
+        entity = repo.saveAndFlush(entity);
         return new IssuedToken(raw, entity);
     }
 
@@ -73,11 +71,15 @@ public class PasswordResetTokenService {
      */
     @Transactional
     public StaffUser consume(String rawToken) {
-        if (rawToken == null || rawToken.isBlank()) {
+        if (rawToken == null || rawToken.isBlank() || rawToken.length() > 256) {
             throw new PasswordResetTokenInvalidException("Token missing");
         }
         String hash = sha256(rawToken);
-        PasswordResetToken token = repo.findByTokenHash(hash)
+        Long staffId = repo.findStaffIdByTokenHash(hash)
+                .orElseThrow(() -> new PasswordResetTokenInvalidException("Invalid password reset token"));
+        StaffUser staff = staffRepo.findByIdForUpdate(staffId)
+                .orElseThrow(() -> new PasswordResetTokenInvalidException("Invalid password reset token"));
+        PasswordResetToken token = repo.findByTokenHashForUpdate(hash)
                 .orElseThrow(() -> new PasswordResetTokenInvalidException("Token not found"));
 
         if (token.getUsedAt() != null) {
@@ -86,46 +88,29 @@ public class PasswordResetTokenService {
         if (token.getExpiresAt().isBefore(OffsetDateTime.now())) {
             throw new PasswordResetTokenInvalidException("Token expired");
         }
-        StaffUser staff = token.getStaffUser();
-        if (Boolean.FALSE.equals(staff.getActive())) {
+        if (!Boolean.TRUE.equals(staff.getActive())) {
             throw new PasswordResetTokenInvalidException("Staff user is inactive");
         }
 
         token.setUsedAt(OffsetDateTime.now());
-        repo.save(token);
+        repo.saveAndFlush(token);
 
         return staff;
     }
 
     private String generateRawToken() {
-        byte[] buf = new byte[TOKEN_BYTES];
-        RANDOM.nextBytes(buf);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
+        return OpaqueTokens.generate();
     }
 
     private String sha256(String input) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(Objects.requireNonNullElse(input, "").getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(digest.length * 2);
-            for (byte b : digest) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+        return OpaqueTokens.hash(input);
     }
 
     private InetAddress resolveIp() {
         if (request == null) return null;
         try {
-            String forwarded = request.getHeader("X-Forwarded-For");
-            String raw = (forwarded != null && !forwarded.isBlank())
-                    ? forwarded.split(",")[0].trim()
-                    : request.getRemoteAddr();
-            return raw != null && !raw.isBlank() ? InetAddress.getByName(raw) : null;
-        } catch (UnknownHostException | IllegalStateException e) {
+            return metadata.ip(request);
+        } catch (IllegalStateException e) {
             return null;
         }
     }
@@ -133,7 +118,7 @@ public class PasswordResetTokenService {
     private String resolveUserAgent() {
         if (request == null) return null;
         try {
-            return request.getHeader("User-Agent");
+            return metadata.userAgent(request.getHeader("User-Agent"));
         } catch (IllegalStateException e) {
             return null;
         }

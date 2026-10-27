@@ -4,6 +4,9 @@ import com.app.carimbai.dtos.CardItemDto;
 import com.app.carimbai.dtos.CardListResponse;
 import com.app.carimbai.dtos.QrTokenResponse;
 import com.app.carimbai.dtos.redeem.RedeemQrResponse;
+import com.app.carimbai.dtos.TokenPayload;
+import com.app.carimbai.dtos.customer.EnrollmentProof;
+import org.springframework.security.access.AccessDeniedException;
 import com.app.carimbai.enums.CardStatus;
 import com.app.carimbai.models.fidelity.Card;
 import com.app.carimbai.repositories.CardRepository;
@@ -69,12 +72,19 @@ public class CardService {
     }
 
     @Transactional
-    public CardResult getOrCreateCard(Long programId, Long customerId) {
+    public CardResult getOrCreateCard(Long programId, Long customerId, EnrollmentProof proof) {
 
         var program = programService.findById(programId);
         // enroll é ação de staff: só inscreve em programa do seu próprio merchant (SEC-020).
         SecurityUtils.requireActiveMerchant(program.getMerchant().getId());
+        if (proof == null) throw new AccessDeniedException("Authenticated enrollment QR is required");
+        if (!Boolean.TRUE.equals(program.getActive())) {
+            throw new IllegalArgumentException("Program is inactive");
+        }
+        stampTokenService.validateAndConsume(new TokenPayload(
+                "CUSTOMER_ENROLLMENT", customerId, proof.nonce(), proof.exp(), proof.sig()));
         var customer = customerService.findById(customerId);
+        if (!Boolean.TRUE.equals(customer.getActive())) throw new AccessDeniedException("Customer processing is restricted");
 
         return cardRepository.findByProgramIdAndCustomerId(program.getId(), customer.getId())
                 .map(existing -> new CardResult(existing, false))
@@ -108,6 +118,7 @@ public class CardService {
         Card card = cardRepository.findById(cardId)
                 .orElseThrow(() -> new IllegalArgumentException("Card not found: " + cardId));
         SecurityUtils.requireActiveCustomer(card.getCustomer().getId());
+        if (card.getStatus()!=CardStatus.ACTIVE) throw new AccessDeniedException("Card processing is restricted");
         return stampTokenService.generateQrCustomer(cardId);
     }
 

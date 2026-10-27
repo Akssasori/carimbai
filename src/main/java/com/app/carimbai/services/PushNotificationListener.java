@@ -39,30 +39,17 @@ public class PushNotificationListener {
         int remaining = event.stampsNeeded() - event.stampsCount();
 
         if (remaining == remindAtRemaining && remaining > 0) {
-            String title = remindAtRemaining == 1
-                    ? "Falta 1 carimbo!"
-                    : "Faltam " + remindAtRemaining + " carimbos!";
-            String body = String.format(
-                    "Em %s, falta%s %d para fechar seu cartao de %s.",
-                    event.merchantName(),
-                    remindAtRemaining == 1 ? "" : "m",
-                    remindAtRemaining,
-                    event.programName());
-            triggerPush(event, "REMIND", title, body);
+            triggerPush(event, "REMIND");
         } else if (event.stampsCount() >= event.stampsNeeded()) {
-            String title = "Cartao cheio!";
-            String body = String.format(
-                    "Em %s, seu cartao de %s esta pronto pra resgate.",
-                    event.merchantName(), event.programName());
-            triggerPush(event, "CARD_FULL", title, body);
+            triggerPush(event, "CARD_FULL");
         }
     }
 
-    private void triggerPush(StampAppliedEvent event, String kind, String title, String body) {
-        log.info("Disparando push customer={} kind={} title={}",
-                event.customerId(), kind, title);
+    private void triggerPush(StampAppliedEvent event, String kind) {
+        log.info("Disparando push customer={} kind={}", event.customerId(), kind);
 
-        pushService.sendToCustomer(event.customerId(), title, body);
+        // No merchant/program names, progress or reward details on shared lock screens.
+        pushService.sendToCustomer(event.customerId(), "Carimbai", "Ha uma atualizacao no seu cartao. Abra o aplicativo para consultar.");
 
         auditService.log(AuditService.AuditEntry.builder()
                 .action(AuditAction.PUSH_NOTIFICATION_TRIGGERED)
@@ -72,10 +59,7 @@ public class PushNotificationListener {
                 .merchantId(event.merchantId())
                 .details(Map.of(
                         "customerId", event.customerId(),
-                        "kind", kind,
-                        "title", title,
-                        "merchantName", event.merchantName(),
-                        "programName", event.programName()
+                        "kind", kind
                 ))
                 .build());
     }

@@ -1,0 +1,46 @@
+name: Verify Backend
+
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'oracle'
+          cache: maven
+      - name: Verify release safety helpers
+        run: python3 -m unittest discover -s deploy -p 'test_*.py'
+      - name: Verify with disposable PostgreSQL and export resolved SBOM
+        run: bash mvnw -B -ntp -Psecurity-scan clean verify
+      - name: Scan resolved runtime dependencies
+        uses: google/osv-scanner-action/osv-scanner-action@v2.7.0
+        with:
+          scan-args: |-
+            --lockfile=target/bom.json
+            --format=json
+            --output-file=target/osv-report.json
+      - name: Preserve test and dependency evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-evidence
+          path: |
+            target/surefire-reports/
+            target/bom.json
+            target/osv-report.json
+      - name: Preserve verified application
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-application
+          path: target/carimbai-*.jar
+          if-no-files-found: error

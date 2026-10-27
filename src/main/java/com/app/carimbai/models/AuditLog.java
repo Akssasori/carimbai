@@ -2,7 +2,6 @@ package com.app.carimbai.models;
 
 import com.app.carimbai.enums.AuditAction;
 import com.app.carimbai.enums.AuditActorType;
-import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -17,7 +16,8 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.Type;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.net.InetAddress;
 import java.time.OffsetDateTime;
@@ -64,7 +64,7 @@ public class AuditLog {
     @Column(nullable = false)
     private Boolean success = true;
 
-    @Type(JsonType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String details;
 

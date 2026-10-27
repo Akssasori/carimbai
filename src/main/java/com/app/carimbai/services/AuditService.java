@@ -4,8 +4,8 @@ import com.app.carimbai.enums.AuditAction;
 import com.app.carimbai.enums.AuditActorType;
 import com.app.carimbai.models.AuditLog;
 import com.app.carimbai.repositories.AuditLogRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +27,7 @@ public class AuditService {
     private final AuditLogRepository auditRepo;
     private final ObjectMapper objectMapper;
     private final ObjectProvider<HttpServletRequest> requestProvider;
+    private final com.app.carimbai.security.NetworkMetadata metadata;
 
     public void log(AuditAction action, AuditActorType actorType, Long actorId) {
         log(AuditEntry.builder()
@@ -53,8 +54,7 @@ public class AuditService {
 
             auditRepo.save(auditLog);
         } catch (Exception e) {
-            log.warn("Falha ao gravar audit log (action={}, actor={}:{}): {}",
-                    entry.action, entry.actorType, entry.actorId, e.getMessage());
+            log.warn("Audit persistence failed: {}",e.getClass().getSimpleName());
         }
     }
 
@@ -64,9 +64,9 @@ public class AuditService {
         }
 
         try {
-            return objectMapper.writeValueAsString(details);
-        } catch (JsonProcessingException e) {
-            log.warn("Falha ao serializar details do audit log: {}", e.getMessage());
+            return objectMapper.writeValueAsString(com.app.carimbai.security.AuditDataMinimizer.project(details));
+        } catch (JacksonException e) {
+            log.warn("Audit metadata serialization failed");
             return "{}";
         }
     }
@@ -79,16 +79,8 @@ public class AuditService {
         }
 
         try {
-            String forwarded = request.getHeader("X-Forwarded-For");
-
-            String rawIp = forwarded != null && !forwarded.isBlank()
-                    ? forwarded.split(",")[0].trim()
-                    : request.getRemoteAddr();
-
-            return rawIp != null && !rawIp.isBlank()
-                    ? InetAddress.getByName(rawIp)
-                    : null;
-        } catch (UnknownHostException | IllegalStateException e) {
+            return metadata.ip(request);
+        } catch (IllegalStateException e) {
             return null;
         }
     }
@@ -101,7 +93,7 @@ public class AuditService {
         }
 
         try {
-            return request.getHeader("User-Agent");
+            return metadata.userAgent(request.getHeader("User-Agent"));
         } catch (IllegalStateException e) {
             return null;
         }

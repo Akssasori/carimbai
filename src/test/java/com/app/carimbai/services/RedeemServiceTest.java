@@ -6,7 +6,7 @@ import com.app.carimbai.repositories.CardRepository;
 import com.app.carimbai.repositories.LocationRepository;
 import com.app.carimbai.repositories.RewardRepository;
 import com.app.carimbai.security.audit.AuditSecurityService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,7 +47,7 @@ class RedeemServiceTest {
         staffService = mock(StaffService.class);
         stampTokenService = mock(StampTokenService.class);
         service = new RedeemService(cardRepo, rewardRepo, locationRepo, staffService,
-                new ObjectMapper(), stampTokenService, mock(AuditSecurityService.class));
+                JsonMapper.builder().build(), stampTokenService, mock(AuditSecurityService.class));
 
         staff = StaffUser.builder().id(10L).email("c@x.com").active(true).build();
         var auth = new UsernamePasswordAuthenticationToken(

@@ -1,4 +1,6 @@
 package com.app.carimbai.dtos.staff.admin;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 
 /**
  * Patch parcial de location. Campos null = nao mexer.
@@ -6,9 +8,9 @@ package com.app.carimbai.dtos.staff.admin;
  * com os 3 campos. Front deve sempre enviar os 3 booleans juntos.
  */
 public record UpdateLocationRequest(
-        String name,
-        String address,
+        @Size(min = 1, max = 120) String name,
+        @Size(max = 255) String address,
         Boolean active,
-        LocationFlags flags
+        @Valid LocationFlags flags
 ) {
 }

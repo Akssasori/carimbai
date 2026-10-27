@@ -7,10 +7,12 @@ do cliente via QR code; ao completar a cartela, o cliente resgata a recompensa.
 
 ## Stack
 
-- **Spring Boot 3.5.9**, **Java 25**, build com **Maven wrapper** (`./mvnw`).
+- **Spring Boot 4.0.9**, **Java 25**, build com **Maven wrapper** (`./mvnw`).
 - **PostgreSQL 16** (via `docker-compose`).
-- **MapStruct 1.6.3** (mapeamento DTO↔entidade), **Lombok**, **springdoc 2.8.9**
+- **MapStruct 1.6.3** (mapeamento DTO↔entidade), **Lombok**, **springdoc 3.0.3**
   (Swagger), Bean Validation, `spring-security-crypto` (BCrypt).
+- JSON da aplicacao com **Jackson 3**; JSONB com suporte nativo do **Hibernate 7**.
+  O adaptador JJWT ainda utiliza Jackson 2, gerenciado separadamente no BOM.
 
 ## Como rodar (dev)
 

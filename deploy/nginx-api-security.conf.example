@@ -1,0 +1,29 @@
+# Include inside the existing TLS server; replace the existing API location.
+# Example only. Do not replace certificates or deploy without nginx -t.
+client_max_body_size 256k;
+client_body_timeout 15s;
+
+location /api/ {
+    proxy_pass http://127.0.0.1:1234;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    # Overwrite untrusted client-supplied forwarding headers.
+    proxy_set_header Forwarded "";
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_set_header X-Forwarded-Prefix "";
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 30s;
+    proxy_intercept_errors off;
+    error_page 413 = @json_too_large;
+}
+
+location @json_too_large {
+    default_type application/json;
+    return 413 '{"error":"PAYLOAD_TOO_LARGE"}';
+}
+
+# Keep the backend port private (firewall/loopback). Only trust forwarding
+# headers from this proxy; never expose a framework-trusting listener directly.
